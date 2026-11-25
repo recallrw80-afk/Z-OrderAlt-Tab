@@ -38,10 +38,14 @@ uninstall:
 	rm -rf "$(EXTENSION_DIR)"
 
 # Contents land at the root of the archive, as required by extensions.gnome.org.
+# Note: gnome-extensions pack (shell 48) does not add schemas/gschemas.compiled,
+# so the bundle is assembled here and verified instead.
 pack: schemas
 	mkdir -p build
 	rm -f "$(ZIP)"
 	zip -qr "$(ZIP)" $(SOURCES) $(ASSETS) schemas
+	@unzip -Z1 "$(ZIP)" | grep -qx 'metadata.json' || { echo "ERROR: metadata.json is not at the archive root" >&2; exit 1; }
+	@unzip -Z1 "$(ZIP)" | grep -qx 'schemas/gschemas.compiled' || { echo "ERROR: schemas/gschemas.compiled is missing" >&2; exit 1; }
 	@unzip -l "$(ZIP)"
 
 release: check pack

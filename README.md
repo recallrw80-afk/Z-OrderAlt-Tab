@@ -1,11 +1,150 @@
 # Z-Order Alt-Tab
 
-GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 GNOME 默认的
-“最近使用（MRU）+ 按应用分组”顺序。
+**English** | [简体中文](#z-order-alt-tab-简体中文)
 
-所有窗口都是平级的：弹窗里每个窗口是一张缩略图卡片，按它们在屏幕上的堆叠位置
-从左到右排列，最上面的窗口排在最前。按 Alt+Tab 沿着这个列表往下走，松开 Alt 时
-切换到最后选中的窗口——它被激活后自然升到堆顶。
+A GNOME Shell extension that switches windows in true **stacking (z) order**,
+instead of the "most recently used + grouped by application" order used by the
+default switcher.
+
+Every window is a peer. The popup shows one thumbnail card per window, ordered
+by stacking position with the topmost window first. Alt+Tab walks down that
+list; releasing Alt activates the selected window, which then rises to the top
+of the stack.
+
+## Switching model
+
+Starting from `a1 a2 b1 b2 c1 c2` (the last entry is on top):
+
+| Action | Switches to | Stack afterwards |
+| --- | --- | --- |
+| Alt+Tab | a1 | `a2 b1 b2 c1 c2 a1` |
+| Tab again | b2 | `a2 b1 c1 c2 a1 b2` |
+
+In other words: **the window you switch to moves to the end of the list (the
+top of the stack)**, and the relative order of all other windows is unchanged.
+The first Alt+Tab selects the window directly below the focused one; if nothing
+is focused, it starts at the top.
+
+The popup shows a live thumbnail, the application icon and the window title for
+each window, and scrolls horizontally. The extension never commits on its own:
+only releasing the modifier (or Enter/Space) switches, Escape cancels. There is
+no idle timeout.
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| `Alt+Tab` | one window further down the stack (default binding) |
+| `Alt+Shift+Tab` | one window up |
+| `↑` / `↓` / `←` / `→` | same as above |
+| `PageUp` / `PageDown` | same as above |
+| `Esc` | cancel without switching |
+| `Enter` / `Space` | switch to the selected window immediately |
+
+The keybindings are GNOME's `switch-applications` / `switch-applications-backward`
+and `switch-windows` / `switch-windows-backward`. Distributions bind Alt+Tab to
+one of those pairs, so both are taken over, and whatever the user configured in
+the system settings is respected.
+
+## Settings
+
+`gnome-extensions prefs z-order-alt-tab@recallrw80-afk`
+
+- **Current workspace only** (default on): turn it off to switch across all workspaces.
+- **Wrap around** (default on): continue at the other end of the list.
+- **Icon size**: size of the application icons, 16–64 px.
+
+## Installation
+
+Requires GNOME Shell 48–51 (tested on 48.7 / Debian 13 / Wayland).
+
+```bash
+make install                 # copies to ~/.local/share/gnome-shell/extensions/
+gnome-extensions enable z-order-alt-tab@recallrw80-afk
+```
+
+On Wayland a newly installed extension is only picked up after a logout/login;
+afterwards `gnome-extensions disable/enable` reloads it in place on X11.
+
+Install from a bundle (handy for sharing):
+
+```bash
+gnome-extensions install --force build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
+```
+
+Uninstall:
+
+```bash
+make uninstall
+```
+
+Pack a distributable zip:
+
+```bash
+make pack                    # build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
+```
+
+## Publishing
+
+The full workflow for publishing on extensions.gnome.org (UUID, tags, building the
+bundle, upload, review, updates, screenshots, alternative distribution) is in
+[PUBLISHING.md](PUBLISHING.md).
+
+```bash
+make release                 # syntax check + build the bundle
+```
+
+## Development
+
+```bash
+make check                   # compile the GSettings schema + node --check
+```
+
+Implementation notes:
+
+- The window list comes from `global.display.get_tab_list(Meta.TabList.NORMAL_ALL, workspace)`,
+  ordered with `global.display.sort_windows_by_stacking()`.
+- The popup takes a modal grab, so key events arrive through the actor's
+  `vfunc_key_press_event` / `vfunc_key_release_event`; plain stage signals are not
+  delivered while the grab is active.
+- Releasing Alt/Super/Ctrl commits. If the modifier was already released before the
+  grab was taken, the popup closes again without switching (checked via
+  `global.get_pointer()`).
+- Thumbnails are `Clutter.Clone` clones of the window actor, so there is no extra
+  screenshot overhead.
+
+## Known limitations
+
+- Thumbnails need a window actor; windows without one (e.g. right after being
+  minimised) fall back to the application icon.
+- The popup appears on the monitor of the focused window, on one monitor only.
+- Only the Alt+Tab family of shortcuts is taken over; `Alt+` + backtick (switch
+  windows of the same application) is untouched.
+
+## License
+
+This project is released under the **GNU General Public License v2.0 or later**
+(GPL-2.0-or-later), the same license as GNOME Shell itself.
+
+- Full license text: [LICENSE](LICENSE)
+- Copyright: 2026 Z-Order Alt-Tab contributors
+- Every source file carries `SPDX-FileCopyrightText` and `SPDX-License-Identifier`;
+  `metadata.json` is plain JSON and cannot hold comments, the bundled `LICENSE`
+  covers it.
+- Keep `LICENSE` when redistributing a bundle (`make pack` includes it).
+
+---
+
+# Z-Order Alt-Tab（简体中文）
+
+[English](#z-order-alt-tab) | **简体中文**
+
+用**层叠顺序（z-order）**切换窗口，而不是 GNOME 默认的“最近使用（MRU）+ 按应用
+分组”顺序。
+
+所有窗口平级：弹窗里每个窗口是一张缩略图卡片，按堆叠位置从左到右排列，最上面的
+窗口在最前。按 Alt+Tab 沿着这个列表往下走，松开 Alt 时切换到最后选中的窗口——
+它被激活后自然升到堆顶。
 
 ## 切换规则
 
@@ -18,10 +157,9 @@ GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 
 
 也就是说：**被切换到的窗口会移动到列表末尾（堆顶）**，其余窗口的相对顺序不变。
 第一次按 Alt+Tab 默认选中当前焦点窗口下面那一层；如果没有焦点窗口，则从堆顶开始。
-弹窗显示每个窗口的实时缩略图 + 图标 + 标题，左右滚动。
 
-扩展不会自己提交/切换：只有松开 Alt（或按 Enter/Space）才会切换，Esc 取消，
-弹窗停留多久都不会自动提交。
+弹窗显示每个窗口的实时缩略图 + 图标 + 标题，左右滚动。扩展不会自己提交：只有松开
+修饰键（或按 Enter/Space）才切换，Esc 取消，没有空闲超时自动提交。
 
 ## 交互
 
@@ -36,8 +174,7 @@ GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 
 
 按键绑定沿用 GNOME 的 `switch-applications` / `switch-applications-backward`
 和 `switch-windows` / `switch-windows-backward`。不同发行版会把 Alt+Tab 绑到
-其中一套上，扩展两套都会接管，因此无论哪种默认设置都能生效，也会尊重用户在
-系统设置里对这四个快捷键的修改。
+其中一套上，扩展两套都会接管，并尊重用户在系统设置里对这四个快捷键的修改。
 
 ## 设置
 
@@ -45,25 +182,19 @@ GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 
 
 - **只切换当前工作区**（默认开启）：关掉后会在所有工作区的窗口之间切换。
 - **循环**（默认开启）：走到列表末尾后从堆顶继续。
-- **图标大小**：弹窗中应用图标的像素大小（16–64）。
+- **图标大小**：应用图标的像素大小（16–64）。
 
 ## 安装
 
-需要 GNOME Shell 48–51（在 48.7 / Debian 13 / Wayland 上实测；49–51 通过 API 兼容层适配）。
+需要 GNOME Shell 48–51（在 48.7 / Debian 13 / Wayland 上实测）。
 
 ```bash
 make install                 # 复制到 ~/.local/share/gnome-shell/extensions/
 gnome-extensions enable z-order-alt-tab@recallrw80-afk
 ```
 
-Wayland 会话下，第一次安装后需要注销并重新登录，扩展才会被加载；之后在
-X11 会话里可以直接用 `gnome-extensions disable/enable` 重新加载。
-
-卸载：
-
-```bash
-make uninstall
-```
+Wayland 会话下，第一次安装后需要注销并重新登录，扩展才会被加载；之后在 X11 会话里
+可以直接用 `gnome-extensions disable/enable` 重新加载。
 
 也可以从 zip 安装（适合分发给别人）：
 
@@ -71,10 +202,25 @@ make uninstall
 gnome-extensions install --force build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
 ```
 
+卸载：
+
+```bash
+make uninstall
+```
+
 打包成可分发的 zip：
 
 ```bash
 make pack                    # build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
+```
+
+## 发布
+
+发布到 extensions.gnome.org 的完整流程（改 uuid、打 tag、出包、上传、审核、更新、
+截图、备选分发方式）见 [PUBLISHING.md](PUBLISHING.md)。
+
+```bash
+make release                 # 语法检查 + 出包
 ```
 
 ## 开发
@@ -93,32 +239,19 @@ make check                   # 编译 GSettings schema + node --check 语法检�
   不做任何切换（用 `global.get_pointer()` 检测）。
 - 缩略图是 `Clutter.Clone` 克隆的窗口 actor，没有额外截图开销。
 
-
 ## 已知限制
 
-- 缩略图来自窗口 actor 的实时克隆（Clutter.Clone）；窗口没有 actor（例如刚最小化）时退回应用图标。
+- 缩略图需要窗口 actor；没有 actor 时（例如刚最小化）退回应用图标。
 - 弹窗出现在焦点窗口所在显示器上，并且只在一台显示器上显示。
 - 只接管 Alt+Tab 系列快捷键，不影响反引号（同应用窗口切换）。
-
-## 发布
-
-发布到 extensions.gnome.org 的完整流程（改 uuid、打 tag、出包、上传、审核、
-更新、截图、备选分发方式）见 [PUBLISHING.md](PUBLISHING.md)。
-
-```bash
-make release        # 语法检查 + 生成 build/<uuid>.shell-extension.zip
-```
 
 ## 许可
 
 本项目以 **GNU General Public License v2.0 或更高版本**（GPL-2.0-or-later）发布，
 与 GNOME Shell 本身的许可一致。
 
-- 完整许可文本：[LICENSE](LICENSE)（GPL-2.0，另见各文件 SPDX 头里的 `-or-later`）
+- 完整许可文本：[LICENSE](LICENSE)
 - 版权：2026 Z-Order Alt-Tab contributors
-- 每个源文件（`extension.js`、`prefs.js`、`stylesheet.css`、`Makefile`、
-  schema XML）都带 `SPDX-FileCopyrightText` 和 `SPDX-License-Identifier`，
+- 每个源文件都带 `SPDX-FileCopyrightText` 和 `SPDX-License-Identifier`；
   `metadata.json` 是纯 JSON 不支持注释，随包的 `LICENSE` 覆盖它。
 - 分发 zip 时请保留 `LICENSE`（`make pack` 会自动包含）。
-
-欢迎以同样的许可提交改进；提交前请跑 `make check` 并在真实会话里验证。

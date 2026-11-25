@@ -47,12 +47,44 @@ schemas/gschemas.compiled
 schemas/org.gnome.shell.extensions.z-order-alt-tab.gschema.xml
 ```
 
-注意：**metadata.json 必须在压缩包根目录**；不要用“把整个仓库目录压缩”的方式打包。
+两个硬性要求，`make pack` 会自检并在不满足时直接失败：
+
+1. **metadata.json 在压缩包根目录**（不要把仓库目录整个压进去）；
+2. **schemas/gschemas.compiled 必须在包里**。
+
+> 为什么不用 `gnome-extensions pack`：GNOME Shell 48 的 `gnome-extensions pack`
+> 只会把 `schemas/*.gschema.xml` 放进包里，**不会**附上 `gschemas.compiled`，
+> 从那个包安装后设置会加载失败。所以这里用 `zip` 自己组装并校验。
+
+## 2.5 metadata.json 的硬性规则
+
+对照 [GNOME Shell 扩展审核规范](https://gjs.guide/extensions/review-guidelines/review-guidelines.html)：
+
+- `shell-version` **只能列已发布的稳定版本**（最多带一个开发版），不能声明支持未来的版本。
+  当前列表 `["48","49","50","51"]`，这四个都已是稳定版，EGO 后台也认识 51。
+- 如果扩展只用 `user` 会话模式，**必须删掉 `session-modes`**（本项目已删）。
+- `url` 应指向可以反馈问题的仓库（本项目指向 GitHub）。
+- 许可必须是 OSI 认可的许可证（本项目 GPL-2.0-or-later）。
+- `version` 字段已废弃，不要写；EGO 自己给每次上传编号。
+
+## 2.6 上传前在本地验证这个 zip
+
+```bash
+gnome-extensions install --force build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
+gnome-extensions info z-order-alt-tab@recallrw80-afk     # State: ACTIVE / Enabled: Yes
+```
+
+装完至少按一次 Alt+Tab 看缩略图和切换是否正常，再 `make install` 恢复到开发版本。
+
+> 小坑：`gnome-extensions install` 在 `XDG_DATA_HOME` 指向一个不存在的目录树时
+> 会报 "Can't recursively copy directory"。用真实的用户目录（或先 `make install`
+> 让目录存在）再装即可。
 
 ## 3. 上传
 
 1. 用 GNOME 账号登录 <https://extensions.gnome.org>。
-2. 在用户菜单里选择 **Upload Extension**（首次发布用这个，不是 “Add Extension”）。
+2. 打开 <https://extensions.gnome.org/upload/>，或者在用户菜单里选择
+   **Upload Extension**（首次发布用这个，不是 “Add Extension”）。
 3. 选择上面生成的 zip。
 4. 站点会解析 `metadata.json`，显示名称、描述、支持的 Shell 版本；
    确认无误后提交。

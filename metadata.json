@@ -1,8 +1,8 @@
 {
   "uuid": "z-order-alt-tab@recallrw80-afk",
   "name": "Z-Order Alt-Tab",
-  "description": "Switch windows in true stacking (z) order instead of the most-recently-used order used by the default Alt-Tab switcher.",
+  "description": "Switch windows in true stacking (z) order instead of the most-recently-used order used by the default Alt-Tab switcher. Every window is listed flat, topmost first, with a live thumbnail, and the window you pick is raised to the top of the stack.",
   "shell-version": ["48", "49", "50", "51"],
-  "session-modes": ["user"],
-  "settings-schema": "org.gnome.shell.extensions.z-order-alt-tab"
+  "settings-schema": "org.gnome.shell.extensions.z-order-alt-tab",
+  "url": "https://github.com/recallrw80-afk/Z-OrderAlt-Tab"
 }
