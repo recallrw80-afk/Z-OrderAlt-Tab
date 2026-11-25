@@ -1,7 +1,7 @@
 /* Z-Order Alt-Tab */
 
 .z-order-switcher {
-    padding: 8px;
+    padding: 10px;
     border-radius: 18px;
     background-color: rgba(24, 24, 27, 0.94);
     border: 1px solid rgba(255, 255, 255, 0.10);
@@ -10,9 +10,9 @@
 }
 
 .z-order-switcher-item {
-    padding: 6px 12px;
-    margin: 1px 0px;
-    border-radius: 12px;
+    padding: 8px;
+    margin: 0px 4px;
+    border-radius: 14px;
     /* Keep the geometry stable when the selection border shows up. */
     border: 1px solid transparent;
     background-color: transparent;
@@ -20,18 +20,18 @@
 
 .z-order-switcher-item-selected {
     background-color: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.z-order-switcher-thumb {
+    background-color: rgba(0, 0, 0, 0.35);
+    border-radius: 10px;
+    margin-bottom: 6px;
 }
 
 .z-order-switcher-title {
-    font-size: 11pt;
-    font-weight: 600;
-    color: #f4f4f5;
-}
-
-.z-order-switcher-app-name {
-    font-size: 9pt;
-    color: rgba(244, 244, 245, 0.62);
+    font-size: 8.5pt;
+    color: rgba(244, 244, 245, 0.92);
 }
 
 .z-order-switcher-icon {

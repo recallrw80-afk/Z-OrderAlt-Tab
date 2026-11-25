@@ -3,9 +3,9 @@
 GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 GNOME 默认的
 “最近使用（MRU）+ 按应用分组”顺序。
 
-所有窗口都是平级的：列表里每个窗口占一行，按它们在屏幕上的堆叠位置排列，
-最上面的窗口排在最前。按 Alt+Tab 沿着这个列表往下走，松开 Alt 时切换到最后
-选中的窗口——它被激活后自然升到堆顶。
+所有窗口都是平级的：弹窗里每个窗口是一张缩略图卡片，按它们在屏幕上的堆叠位置
+从左到右排列，最上面的窗口排在最前。按 Alt+Tab 沿着这个列表往下走，松开 Alt 时
+切换到最后选中的窗口——它被激活后自然升到堆顶。
 
 ## 切换规则
 
@@ -18,6 +18,10 @@ GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 
 
 也就是说：**被切换到的窗口会移动到列表末尾（堆顶）**，其余窗口的相对顺序不变。
 第一次按 Alt+Tab 默认选中当前焦点窗口下面那一层；如果没有焦点窗口，则从堆顶开始。
+弹窗显示每个窗口的实时缩略图 + 图标 + 标题，左右滚动。
+
+扩展不会自己提交/切换：只有松开 Alt（或按 Enter/Space）才会切换，Esc 取消，
+弹窗停留多久都不会自动提交。
 
 ## 交互
 
@@ -45,7 +49,7 @@ GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 
 
 ## 安装
 
-需要 GNOME Shell 45 及以上（本仓库在 48.7 / Debian 13 / Wayland 上实测）。
+需要 GNOME Shell 48–51（在 48.7 / Debian 13 / Wayland 上实测；49–51 通过 API 兼容层适配）。
 
 ```bash
 make install                 # 复制到 ~/.local/share/gnome-shell/extensions/
@@ -79,13 +83,14 @@ make check                   # 编译 GSettings schema + node --check 语法检�
   再用 `global.display.sort_windows_by_stacking()` 按 z 序排序。
 - 弹窗用 `Main.pushModal()` 抓取键盘，因此按键事件走 `vfunc_key_press_event` /
   `vfunc_key_release_event`（模态抓取期间的按键不会传到 stage）。
-- 松开 Alt/Super/Ctrl 时提交；如果按下 Alt+Tab 后很快松开 Alt（抓取建立前按键已
-  释放），会用 `global.get_pointer()` 的修饰键状态检测并立即提交。
-- 15 秒没有任何按键会自动提交并释放抓取，避免任何情况下把整机会话的键盘卡住。
+- 松开 Alt/Super/Ctrl 时提交；如果抓取建立之前修饰键就已经松开，弹窗会直接关闭、
+  不做任何切换（用 `global.get_pointer()` 检测）。
+- 缩略图是 `Clutter.Clone` 克隆的窗口 actor，没有额外截图开销。
+
 
 ## 已知限制
 
-- 弹窗显示应用图标 + 窗口标题，不渲染窗口缩略图。
+- 缩略图来自窗口 actor 的实时克隆（Clutter.Clone）；窗口没有 actor（例如刚最小化）时退回应用图标。
 - 弹窗出现在焦点窗口所在显示器上，并且只在一台显示器上显示。
 - 只接管 Alt+Tab 系列快捷键，不影响反引号（同应用窗口切换）。
 

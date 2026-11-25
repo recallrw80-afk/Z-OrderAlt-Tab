@@ -44,12 +44,14 @@ const ACTION_MODES = Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW;
 const POPUP_SHOW_DELAY = 150;
 const POPUP_FADE_TIME = 120;
 const POPUP_TOP_FACTOR = 0.24;
-const POPUP_MAX_HEIGHT_FACTOR = 0.7;
+const POPUP_MAX_WIDTH_FACTOR = 0.9;
 const POPUP_MARGIN = 24;
-const POPUP_IDLE_TIMEOUT = 15000;
-const TITLE_MAX_WIDTH = 420;
-const ITEM_SPACING = 2;
-const ICON_LABEL_SPACING = 12;
+const ITEM_SPACING = 8;
+
+const THUMB_WIDTH = 176;
+const THUMB_HEIGHT = 110;
+const CAPTION_WIDTH = 150;
+const CAPTION_ICON_SIZE = 16;
 
 const FALLBACK_ICON = 'application-x-executable';
 
@@ -82,6 +84,71 @@ function primaryModifier(mask) {
             return modifier;
     }
     return 0;
+}
+
+/**
+ * The UI group moved between shell versions; fall back to the layout
+ * manager's group when Main.uiGroup is gone.
+ *
+ * @returns {Clutter.Actor|null}
+ */
+function getUiGroup() {
+    if (Main.uiGroup)
+        return Main.uiGroup;
+    if (Main.layoutManager && Main.layoutManager.uiGroup)
+        return Main.layoutManager.uiGroup;
+    return null;
+}
+
+/**
+ * @returns {Meta.Workspace|null}
+ */
+function getActiveWorkspace() {
+    try {
+        if (global.workspace_manager)
+            return global.workspace_manager.get_active_workspace();
+        if (typeof global.display.get_workspace_manager === 'function')
+            return global.display.get_workspace_manager().get_active_workspace();
+    } catch (e) {
+        logError(e, 'Z-Order Alt-Tab: cannot read the active workspace');
+    }
+    return null;
+}
+
+/**
+ * Frame geometry of a window. get_frame_rect() was replaced by
+ * get_frame_bounds() in newer mutter versions.
+ *
+ * @param {Meta.Window} window
+ * @returns {{width: number, height: number}|null}
+ */
+function getWindowRect(window) {
+    for (const method of ['get_frame_rect', 'get_frame_bounds']) {
+        if (typeof window[method] !== 'function')
+            continue;
+        try {
+            const rect = window[method]();
+            if (rect && rect.width > 0 && rect.height > 0)
+                return rect;
+        } catch (e) {
+            // Try the next accessor.
+        }
+    }
+    return null;
+}
+
+/**
+ * @param {Meta.Window|null} window
+ * @returns {number} monitor index, or -1 when unknown
+ */
+function getWindowMonitor(window) {
+    if (!window || typeof window.get_monitor !== 'function')
+        return -1;
+    try {
+        return window.get_monitor();
+    } catch (e) {
+        return -1;
+    }
 }
 
 function clamp(value, min, max) {
@@ -127,58 +194,94 @@ class SwitcherItem extends St.BoxLayout {
     _init(entry, iconSize) {
         super._init({
             style_class: 'z-order-switcher-item',
-            orientation: Clutter.Orientation.HORIZONTAL,
-            x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
+            orientation: Clutter.Orientation.VERTICAL,
+            y_align: Clutter.ActorAlign.START,
         });
 
         this.window = entry.window;
 
-        if (this.layout_manager)
-            this.layout_manager.spacing = ICON_LABEL_SPACING;
-
-        this._icon = new St.Icon({
-            style_class: 'z-order-switcher-icon',
-            icon_size: iconSize,
-            fallback_icon_name: FALLBACK_ICON,
-            y_align: Clutter.ActorAlign.CENTER,
+        this._thumbBox = new St.Widget({
+            style_class: 'z-order-switcher-thumb',
+            width: THUMB_WIDTH,
+            height: THUMB_HEIGHT,
+            layout_manager: new Clutter.BinLayout(),
         });
 
-        if (entry.app && entry.app.get_icon())
-            this._icon.gicon = entry.app.get_icon();
-        this.add_child(this._icon);
+        const preview = this._createPreview(entry, iconSize);
+        preview.x_align = Clutter.ActorAlign.CENTER;
+        preview.y_align = Clutter.ActorAlign.CENTER;
+        this._thumbBox.add_child(preview);
+        this.add_child(this._thumbBox);
 
-        const labels = new St.BoxLayout({
-            style_class: 'z-order-switcher-labels',
-            orientation: Clutter.Orientation.VERTICAL,
+        const caption = new St.BoxLayout({
+            style_class: 'z-order-switcher-caption',
+            orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
+        if (caption.layout_manager)
+            caption.layout_manager.spacing = 6;
+
+        const icon = new St.Icon({
+            style_class: 'z-order-switcher-app-icon',
+            icon_size: CAPTION_ICON_SIZE,
+            fallback_icon_name: FALLBACK_ICON,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        if (entry.app && entry.app.get_icon())
+            icon.gicon = entry.app.get_icon();
+        caption.add_child(icon);
 
         this._label = new St.Label({
             style_class: 'z-order-switcher-title',
             text: getWindowTitle(entry.window),
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        this._label.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-        this._label.clutter_text.line_wrap = false;
-        this._label.set_width(TITLE_MAX_WIDTH);
-        labels.add_child(this._label);
+        const labelText = this._label.clutter_text;
+        if (labelText) {
+            labelText.ellipsize = Pango.EllipsizeMode.END;
+            labelText.line_wrap = false;
+        }
+        this._label.set_width(CAPTION_WIDTH);
+        caption.add_child(this._label);
 
-        const appName = entry.app ? entry.app.get_name() : '';
-        if (appName) {
-            this._appLabel = new St.Label({
-                style_class: 'z-order-switcher-app-name',
-                text: appName,
-                x_expand: true,
-            });
-            this._appLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-            this._appLabel.clutter_text.line_wrap = false;
-            this._appLabel.set_width(TITLE_MAX_WIDTH);
-            labels.add_child(this._appLabel);
+        this.add_child(caption);
+    }
+
+    /**
+     * A live preview of the window, scaled to fit the thumbnail box.
+     *
+     * @param {object} entry window plus its application
+     * @param {number} iconSize fallback icon size
+     * @returns {Clutter.Actor}
+     */
+    _createPreview(entry, iconSize) {
+        const windowActor = entry.window.get_compositor_private();
+
+        if (windowActor) {
+            try {
+                const rect = getWindowRect(entry.window) ?? {width: 16, height: 9};
+                const scale = Math.min(THUMB_WIDTH / rect.width, THUMB_HEIGHT / rect.height);
+
+                return new Clutter.Clone({
+                    source: windowActor,
+                    width: Math.max(1, Math.round(rect.width * scale)),
+                    height: Math.max(1, Math.round(rect.height * scale)),
+                });
+            } catch (e) {
+                logError(e, 'Z-Order Alt-Tab: could not build window preview');
+            }
         }
 
-        this.add_child(labels);
+        const icon = new St.Icon({
+            style_class: 'z-order-switcher-icon',
+            icon_size: Math.max(iconSize, 48),
+            fallback_icon_name: FALLBACK_ICON,
+        });
+        if (entry.app && entry.app.get_icon())
+            icon.gicon = entry.app.get_icon();
+        return icon;
     }
 
     setSelected(selected) {
@@ -196,7 +299,7 @@ class SwitcherPopup extends St.BoxLayout {
     _init(extension) {
         super._init({
             style_class: 'z-order-switcher',
-            orientation: Clutter.Orientation.VERTICAL,
+            orientation: Clutter.Orientation.HORIZONTAL,
             reactive: true,
             can_focus: true,
             visible: true,
@@ -209,7 +312,6 @@ class SwitcherPopup extends St.BoxLayout {
         this._selectedIndex = -1;
         this._grab = null;
         this._stageHandlers = [];
-        this._idleTimeoutId = 0;
         this._showTimeoutId = 0;
         this._closing = false;
         this._minEventTime = 0;
@@ -224,8 +326,8 @@ class SwitcherPopup extends St.BoxLayout {
 
         this._itemBox = new St.BoxLayout({
             style_class: 'z-order-switcher-box',
-            orientation: Clutter.Orientation.VERTICAL,
-            x_expand: true,
+            orientation: Clutter.Orientation.HORIZONTAL,
+            y_expand: true,
         });
 
         if (this._itemBox.layout_manager)
@@ -256,12 +358,30 @@ class SwitcherPopup extends St.BoxLayout {
         this._minEventTime = global.get_current_time();
         this._modifierMask = primaryModifier(mask);
 
-        Main.uiGroup.add_child(this);
-        Main.uiGroup.set_child_above_sibling(this, null);
+        const uiGroup = getUiGroup();
+        if (!uiGroup) {
+            console.warn('Z-Order Alt-Tab: no UI group to add the switcher to');
+            return false;
+        }
+
+        uiGroup.add_child(this);
+        uiGroup.set_child_above_sibling(this, null);
 
         this._connectStage();
 
-        this._grab = Main.pushModal(this);
+        try {
+            this._grab = Main.pushModal(this);
+        } catch (e) {
+            try {
+                this._grab = Main.pushModal(this, {
+                    timestamp: global.get_current_time(),
+                    actionMode: Shell.ActionMode.NORMAL,
+                });
+            } catch (e2) {
+                logError(e2, 'Z-Order Alt-Tab: could not push a modal grab');
+                this._grab = null;
+            }
+        }
         if (!this._grab) {
             console.warn('Z-Order Alt-Tab: could not acquire a modal grab');
         } else if (typeof this._grab.get_seat_state === 'function' &&
@@ -275,14 +395,14 @@ class SwitcherPopup extends St.BoxLayout {
         this._syncSelection();
         this._position();
         this.grab_key_focus();
-        this._resetIdleTimer();
 
         // The modifier may have been released before the grab was taken, in
-        // which case no key release event will ever reach us.
+        // which case no key release event will ever reach us. Close again
+        // without switching anything.
         if (this._modifierMask) {
             const [, , mods] = global.get_pointer();
             if (!(mods & this._modifierMask)) {
-                this._finish(this._selectedIndex);
+                this._finish(null);
                 return true;
             }
         }
@@ -309,13 +429,12 @@ class SwitcherPopup extends St.BoxLayout {
      * @param {number} delta direction to move in
      */
     select(delta) {
-        this._resetIdleTimer();
         this._select(delta);
     }
 
     _collectEntries() {
         const workspace = this._settings.get_boolean('current-workspace-only')
-            ? global.workspace_manager.get_active_workspace()
+            ? getActiveWorkspace()
             : null;
 
         const windows = global.display.get_tab_list(Meta.TabList.NORMAL_ALL, workspace);
@@ -398,23 +517,29 @@ class SwitcherPopup extends St.BoxLayout {
     }
 
     _position() {
-        this.ensure_style();
+        if (typeof this.ensure_style === 'function')
+            this.ensure_style();
 
         const focused = global.display.get_focus_window();
-        let monitorIndex = Main.layoutManager.primaryIndex;
-        if (focused)
-            monitorIndex = focused.get_monitor();
+        let monitorIndex = getWindowMonitor(focused);
+        if (monitorIndex < 0)
+            monitorIndex = Main.layoutManager.primaryIndex;
         monitorIndex = clamp(monitorIndex, 0, Main.layoutManager.monitors.length - 1);
 
         const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
-        const [, naturalWidth] = this.get_preferred_width(-1);
-        let [, naturalHeight] = this.get_preferred_height(naturalWidth);
+        const maxWidth = Math.round(workArea.width * POPUP_MAX_WIDTH_FACTOR);
 
-        const maxHeight = Math.round(workArea.height * POPUP_MAX_HEIGHT_FACTOR);
-        if (naturalHeight > maxHeight) {
-            naturalHeight = maxHeight;
-            this._scrollView.set_height(maxHeight);
+        let [, naturalWidth] = this.get_preferred_width(-1);
+        if (naturalWidth > maxWidth) {
+            const node = this.get_theme_node();
+            const extra =
+                node.get_padding(St.Side.LEFT) + node.get_padding(St.Side.RIGHT) +
+                node.get_border_width(St.Side.LEFT) + node.get_border_width(St.Side.RIGHT);
+            this._scrollView.set_width(Math.max(120, maxWidth - extra));
+            [, naturalWidth] = this.get_preferred_width(-1);
         }
+
+        const [, naturalHeight] = this.get_preferred_height(-1);
 
         const x = workArea.x + Math.round((workArea.width - naturalWidth) / 2);
         const y = clamp(
@@ -435,17 +560,17 @@ class SwitcherPopup extends St.BoxLayout {
         if (!item)
             return;
 
-        const vadjustment = this._scrollView.get_vadjustment();
-        if (!vadjustment || !vadjustment.page_size)
+        const hadjustment = this._scrollView.get_hadjustment();
+        if (!hadjustment || !hadjustment.page_size)
             return;
 
-        const top = item.y;
-        const bottom = item.y + item.height;
+        const left = item.x;
+        const right = item.x + item.width;
 
-        if (top < vadjustment.value)
-            vadjustment.set_value(top);
-        else if (bottom > vadjustment.value + vadjustment.page_size)
-            vadjustment.set_value(bottom - vadjustment.page_size);
+        if (left < hadjustment.value)
+            hadjustment.set_value(left);
+        else if (right > hadjustment.value + hadjustment.page_size)
+            hadjustment.set_value(right - hadjustment.page_size);
     }
 
     /**
@@ -487,24 +612,9 @@ class SwitcherPopup extends St.BoxLayout {
         return this._keyReleaseHandler(event);
     }
 
-    _resetIdleTimer() {
-        if (this._idleTimeoutId)
-            GLib.source_remove(this._idleTimeoutId);
-
-        // Safety net: never keep the modal grab (and therefore the keyboard
-        // of the whole session) forever, no matter what happens to key events.
-        this._idleTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, POPUP_IDLE_TIMEOUT, () => {
-            this._idleTimeoutId = 0;
-            this._finish(this._selectedIndex);
-            return GLib.SOURCE_REMOVE;
-        });
-    }
-
     _keyPressHandler(event) {
         if (this._closing)
             return Clutter.EVENT_STOP;
-
-        this._resetIdleTimer();
 
         if (event.get_time() <= this._minEventTime)
             return Clutter.EVENT_PROPAGATE;
@@ -543,8 +653,6 @@ class SwitcherPopup extends St.BoxLayout {
     _keyReleaseHandler(event) {
         if (this._closing)
             return Clutter.EVENT_STOP;
-
-        this._resetIdleTimer();
 
         // Releasing the modifier that summoned the switcher commits the
         // selection, just like the built-in Alt-Tab.
@@ -589,11 +697,6 @@ class SwitcherPopup extends St.BoxLayout {
     _onDestroy() {
         this._closing = true;
 
-        if (this._idleTimeoutId) {
-            GLib.source_remove(this._idleTimeoutId);
-            this._idleTimeoutId = 0;
-        }
-
         if (this._showTimeoutId) {
             GLib.source_remove(this._showTimeoutId);
             this._showTimeoutId = 0;
@@ -611,30 +714,19 @@ export default class ZOrderAltTabExtension extends Extension {
         this._popup = null;
         this._settings = this.getSettings();
 
-        // The shell installs the stock switcher through the same API, so its
-        // handler has to be put back when this extension goes away.
-        this._defaultHandler = typeof Main.wm._startSwitcher === 'function'
+        // Handler the shell installed for its own switcher. It is used to put
+        // the stock behaviour back when this extension is disabled.
+        this._defaultHandler = Main.wm && typeof Main.wm._startSwitcher === 'function'
             ? Main.wm._startSwitcher.bind(Main.wm)
             : null;
 
-        for (const [name, direction] of KEYBINDINGS) {
-            Main.wm.setCustomKeybindingHandler(
-                name,
-                ACTION_MODES,
-                (display, window, event) => this._onKeybinding(direction, event),
-                Meta.KeyBindingFlags.NONE);
-        }
+        for (const [name, direction] of KEYBINDINGS)
+            this._installHandler(name, this._makeHandler(direction));
     }
 
     disable() {
-        for (const [name] of KEYBINDINGS) {
-            const handler = this._defaultHandler;
-            Main.wm.setCustomKeybindingHandler(
-                name,
-                ACTION_MODES,
-                handler ? handler : () => {},
-                Meta.KeyBindingFlags.NONE);
-        }
+        for (const [name, direction] of KEYBINDINGS)
+            this._restoreHandler(name, direction);
 
         if (this._popup) {
             this._popup.destroy();
@@ -645,10 +737,89 @@ export default class ZOrderAltTabExtension extends Extension {
         this._settings = null;
     }
 
+    _makeHandler(direction) {
+        return (display, window, event) => this._onKeybinding(direction, event);
+    }
+
+    /**
+     * Take over a shell keybinding. The API used for that changed over the
+     * supported shell versions, so try them in order.
+     *
+     * @param {string} name keybinding name
+     * @param {Function} handler handler to install
+     * @returns {boolean} whether the handler was installed
+     */
+    _installHandler(name, handler) {
+        try {
+            if (Main.wm && typeof Main.wm.setCustomKeybindingHandler === 'function') {
+                Main.wm.setCustomKeybindingHandler(
+                    name, ACTION_MODES, handler, Meta.KeyBindingFlags.NONE);
+                return true;
+            }
+        } catch (e) {
+            logError(e, `Z-Order Alt-Tab: could not take over ${name}`);
+        }
+
+        try {
+            if (typeof Meta.keybindings_set_custom_handler !== 'function')
+                return false;
+
+            const installed = Meta.keybindings_set_custom_handler(name, handler);
+            if (installed && Main.wm && typeof Main.wm.allowKeybinding === 'function')
+                Main.wm.allowKeybinding(name, ACTION_MODES);
+            return installed;
+        } catch (e) {
+            logError(e, `Z-Order Alt-Tab: could not install a handler for ${name}`);
+            return false;
+        }
+    }
+
+    /**
+     * Hand a keybinding back to the shell. The stock handler is a private
+     * method that may disappear between shell versions, so fall back to a
+     * plain MRU switch rather than leaving Alt-Tab dead.
+     *
+     * @param {string} name keybinding name
+     * @param {number} direction 1 or -1
+     */
+    _restoreHandler(name, direction) {
+        const stock = this._defaultHandler ??
+            (Main.wm && typeof Main.wm._startAppSwitcher === 'function'
+                ? Main.wm._startAppSwitcher.bind(Main.wm)
+                : null);
+
+        if (stock) {
+            this._installHandler(name, stock);
+            return;
+        }
+
+        this._installHandler(name, () => this._switchMru(direction));
+    }
+
+    /**
+     * Emergency replacement for the stock switcher: activate the next or
+     * previous window in most-recently-used order.
+     *
+     * @param {number} direction 1 or -1
+     */
+    _switchMru(direction) {
+        const windows = global.display.get_tab_list(Meta.TabList.NORMAL_ALL, getActiveWorkspace());
+        if (!windows || windows.length < 2)
+            return;
+
+        const focused = global.display.get_focus_window();
+        const current = Math.max(windows.indexOf(focused), 0);
+        const count = windows.length;
+        const next = windows[((current + direction) % count + count) % count];
+
+        activateWindow(next, global.get_current_time());
+    }
+
     _onKeybinding(direction, event) {
         const mask = event && typeof event.get_state === 'function'
             ? event.get_state()
             : 0;
+
         if (this._popup) {
             // The popup normally owns the keyboard through its modal grab;
             // this path only happens if that grab was refused.
