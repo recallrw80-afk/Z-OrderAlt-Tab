@@ -41,7 +41,7 @@ GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 
 
 ## 设置
 
-`gnome-extensions prefs z-order-alt-tab@local`
+`gnome-extensions prefs z-order-alt-tab@recallrw80-afk`
 
 - **只切换当前工作区**（默认开启）：关掉后会在所有工作区的窗口之间切换。
 - **循环**（默认开启）：走到列表末尾后从堆顶继续。
@@ -53,7 +53,7 @@ GNOME Shell 扩展：用 **层叠顺序（z-order）** 切换窗口，而不是 
 
 ```bash
 make install                 # 复制到 ~/.local/share/gnome-shell/extensions/
-gnome-extensions enable z-order-alt-tab@local
+gnome-extensions enable z-order-alt-tab@recallrw80-afk
 ```
 
 Wayland 会话下，第一次安装后需要注销并重新登录，扩展才会被加载；之后在
@@ -68,13 +68,13 @@ make uninstall
 也可以从 zip 安装（适合分发给别人）：
 
 ```bash
-gnome-extensions install --force build/z-order-alt-tab@local.shell-extension.zip
+gnome-extensions install --force build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
 ```
 
 打包成可分发的 zip：
 
 ```bash
-make pack                    # build/z-order-alt-tab@local.shell-extension.zip
+make pack                    # build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
 ```
 
 ## 开发

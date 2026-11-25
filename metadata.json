@@ -1,5 +1,5 @@
 {
-  "uuid": "z-order-alt-tab@local",
+  "uuid": "z-order-alt-tab@recallrw80-afk",
   "name": "Z-Order Alt-Tab",
   "description": "Switch windows in true stacking (z) order instead of the most-recently-used order used by the default Alt-Tab switcher.",
   "shell-version": ["48", "49", "50", "51"],

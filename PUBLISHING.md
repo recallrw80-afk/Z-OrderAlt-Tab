@@ -104,7 +104,7 @@ make release
 
 ```bash
 # 从 zip 安装（覆盖已存在的同名扩展）
-gnome-extensions install --force build/z-order-alt-tab@local.shell-extension.zip
+gnome-extensions install --force build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
 # 或者直接从仓库安装
 make install && gnome-extensions enable <uuid>
 ```
