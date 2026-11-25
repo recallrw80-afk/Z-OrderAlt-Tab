@@ -65,6 +65,12 @@ X11 会话里可以直接用 `gnome-extensions disable/enable` 重新加载。
 make uninstall
 ```
 
+也可以从 zip 安装（适合分发给别人）：
+
+```bash
+gnome-extensions install --force build/z-order-alt-tab@local.shell-extension.zip
+```
+
 打包成可分发的 zip：
 
 ```bash
@@ -94,6 +100,25 @@ make check                   # 编译 GSettings schema + node --check 语法检�
 - 弹窗出现在焦点窗口所在显示器上，并且只在一台显示器上显示。
 - 只接管 Alt+Tab 系列快捷键，不影响反引号（同应用窗口切换）。
 
+## 发布
+
+发布到 extensions.gnome.org 的完整流程（改 uuid、打 tag、出包、上传、审核、
+更新、截图、备选分发方式）见 [PUBLISHING.md](PUBLISHING.md)。
+
+```bash
+make release        # 语法检查 + 生成 build/<uuid>.shell-extension.zip
+```
+
 ## 许可
 
-GPL-2.0-or-later，见各源文件头部的 SPDX 标识。
+本项目以 **GNU General Public License v2.0 或更高版本**（GPL-2.0-or-later）发布，
+与 GNOME Shell 本身的许可一致。
+
+- 完整许可文本：[LICENSE](LICENSE)（GPL-2.0，另见各文件 SPDX 头里的 `-or-later`）
+- 版权：2026 Z-Order Alt-Tab contributors
+- 每个源文件（`extension.js`、`prefs.js`、`stylesheet.css`、`Makefile`、
+  schema XML）都带 `SPDX-FileCopyrightText` 和 `SPDX-License-Identifier`，
+  `metadata.json` 是纯 JSON 不支持注释，随包的 `LICENSE` 覆盖它。
+- 分发 zip 时请保留 `LICENSE`（`make pack` 会自动包含）。
+
+欢迎以同样的许可提交改进；提交前请跑 `make check` 并在真实会话里验证。

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Z-Order Alt-Tab contributors
+//
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import Adw from 'gi://Adw';

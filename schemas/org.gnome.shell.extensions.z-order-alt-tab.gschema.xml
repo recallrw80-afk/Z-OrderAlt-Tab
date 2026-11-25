@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2026 Z-Order Alt-Tab contributors
+
+     SPDX-License-Identifier: GPL-2.0-or-later
+-->
 <schemalist gettext-domain="z-order-alt-tab">
   <schema id="org.gnome.shell.extensions.z-order-alt-tab"
           path="/org/gnome/shell/extensions/z-order-alt-tab/">
