@@ -25,6 +25,7 @@ check: schemas
 	node --check /tmp/z-order-alt-tab-extension.mjs
 	cp prefs.js /tmp/z-order-alt-tab-prefs.mjs
 	node --check /tmp/z-order-alt-tab-prefs.mjs
+	python3 -m py_compile tools/screenshot.py
 	@echo "syntax check passed"
 
 install: schemas

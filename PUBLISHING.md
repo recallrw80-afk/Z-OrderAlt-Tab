@@ -128,6 +128,14 @@ make release
 
 - 扩展页面可以补充截图（需登录）。建议 1920×1080，截一张弹窗里有 3–4 个
   带缩略图的窗口、其中一个高亮的画面。
+- 弹窗会抓走键盘，PrintScreen 在切换过程中不生效，用仓库里的延时截图工具：
+
+  ```bash
+  tools/screenshot.py --delay 5 --output docs/screenshot.png
+  # 然后按住 Alt+Tab 翻到想要的画面
+  ```
+
+  仓库当前的 `docs/screenshot.png` 就是这样截的，可以直接上传。
 - 描述保持纯文本、说明“按 z 序切换、不按 MRU、不按应用分组”。
 
 ## 7. 备选分发方式

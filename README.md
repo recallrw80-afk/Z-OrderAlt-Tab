@@ -6,6 +6,8 @@ A GNOME Shell extension that switches windows in true **stacking (z) order**,
 instead of the "most recently used + grouped by application" order used by the
 default switcher.
 
+![The switcher with four windows](docs/screenshot.png)
+
 Every window is a peer. The popup shows one thumbnail card per window, ordered
 by stacking position with the topmost window first. Alt+Tab walks down that
 list; releasing Alt activates the selected window, which then rises to the top
@@ -83,6 +85,21 @@ Pack a distributable zip:
 ```bash
 make pack                    # build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
 ```
+
+## Taking a screenshot of the switcher
+
+The popup takes a modal keyboard grab while it is open, so pressing PrintScreen
+does not reach the shell's screenshot UI. Ask the XDG portal for a delayed
+capture instead:
+
+```bash
+tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
+# now hold Alt+Tab and tab through a few windows until the capture fires
+```
+
+The helper is a small python3-gi script; it prints the saved path and removes
+the portal's temporary `~/Screenshot.png`. `docs/screenshot.png` in this
+repository was produced this way.
 
 ## Publishing
 
@@ -213,6 +230,19 @@ make uninstall
 ```bash
 make pack                    # build/z-order-alt-tab@recallrw80-afk.shell-extension.zip
 ```
+
+## 给切换器截图
+
+弹窗打开期间会抓走键盘，所以按 PrintScreen 不会触发桌面的截图界面。用附带的
+小工具通过 XDG portal 做延时截图：
+
+```bash
+tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
+# 然后按住 Alt+Tab 翻几个窗口，等它触发
+```
+
+脚本依赖 python3-gi，会打印保存路径，并清掉 portal 临时写到 `~/Screenshot.png`
+的那份。仓库里的 `docs/screenshot.png` 就是这么截出来的。
 
 ## 发布
 
