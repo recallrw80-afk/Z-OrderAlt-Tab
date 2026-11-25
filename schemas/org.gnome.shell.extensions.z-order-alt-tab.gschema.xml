@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="z-order-alt-tab">
+  <schema id="org.gnome.shell.extensions.z-order-alt-tab"
+          path="/org/gnome/shell/extensions/z-order-alt-tab/">
+    <key name="current-workspace-only" type="b">
+      <default>true</default>
+      <summary>Cycle through the current workspace only</summary>
+      <description>
+        When enabled, only windows on the active workspace are part of the
+        stacking order. Disable it to walk the stacking order of every window
+        on every workspace.
+      </description>
+    </key>
+    <key name="wrap-around" type="b">
+      <default>true</default>
+      <summary>Wrap around at the ends of the stack</summary>
+      <description>
+        When enabled, tabbing past the bottom-most window continues at the
+        top of the stack (and vice versa for the reverse direction).
+      </description>
+    </key>
+    <key name="icon-size" type="i">
+      <default>32</default>
+      <range min="16" max="64"/>
+      <summary>Icon size</summary>
+      <description>Size in pixels of the application icons shown in the switcher.</description>
+    </key>
+  </schema>
+</schemalist>
