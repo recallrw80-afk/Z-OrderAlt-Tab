@@ -117,6 +117,10 @@ gnome-extensions info z-order-alt-tab@recallrw80-afk     # State: ACTIVE / Enabl
 ## 4. 审核
 
 - 由志愿者人工审核，通常几天到几周；被拒会收到站内/邮件通知，附带理由。
+- 看到 `Auto-rejected because of new version N was uploaded` 不用慌：这是站点在
+  你上传新版本后，把**被取代的旧待审版本**自动标记为拒绝，免得审核员审旧包。
+  扩展本身仍是 pending，队列里是新的那个版本；不要因此再传一次，否则新版也会
+  被下一次上传自动拒绝，永远排队。
 - 被拒后修完代码，重新打包上传即可（新版本会重新进入队列）。
 - 常见的退回原因（这个项目也适用）：
 
