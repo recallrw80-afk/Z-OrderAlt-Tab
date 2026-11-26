@@ -66,6 +66,11 @@ schemas/org.gnome.shell.extensions.z-order-alt-tab.gschema.xml
 - `url` 应指向可以反馈问题的仓库（本项目指向 GitHub）。
 - 许可必须是 OSI 认可的许可证（本项目 GPL-2.0-or-later）。
 - `version` 字段已废弃，不要写；EGO 自己给每次上传编号。
+- **上传时不要开着浏览器网页翻译**（Chrome/Google 翻译的“翻译此页”）。它会把上传表单里的
+  `name` / `description` 改写成带 `<font dir="auto" ...>` 的译文并转义，EGO 会原样存下来，
+  页面就会显示成 `&amp;lt;font ...&amp;gt;` 的乱码。`make check` 里的
+  `tools/check-metadata.py` 会拦掉这种 markup。
+- `name` / `description` 只能是纯文本；`description` 里的段落用 `\n`，列表用 `*` 开头。
 
 ## 2.6 上传前在本地验证这个 zip
 

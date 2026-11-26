@@ -21,6 +21,7 @@ schemas/gschemas.compiled: $(SCHEMA_XML)
 	glib-compile-schemas --strict --targetdir=schemas schemas
 
 check: schemas
+	python3 tools/check-metadata.py metadata.json
 	cp extension.js /tmp/z-order-alt-tab-extension.mjs
 	node --check /tmp/z-order-alt-tab-extension.mjs
 	cp prefs.js /tmp/z-order-alt-tab-prefs.mjs
