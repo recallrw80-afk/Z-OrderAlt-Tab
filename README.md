@@ -15,7 +15,8 @@ of the stack.
 
 ## Switching model
 
-Starting from `a1 a2 b1 b2 c1 c2` (the last entry is on top):
+Starting from the stack `a1 a2 b1 b2 c1 c2`, written bottom to top (so the
+last entry is on top):
 
 | Action | Switches to | Stack afterwards |
 | --- | --- | --- |
@@ -38,8 +39,8 @@ no idle timeout.
 | --- | --- |
 | `Alt+Tab` | one window further down the stack (default binding) |
 | `Alt+Shift+Tab` | one window up |
-| `↑` / `↓` / `←` / `→` | same as above |
-| `PageUp` / `PageDown` | same as above |
+| `↑` / `←` / `PageUp` | one window up (same as `Alt+Shift+Tab`) |
+| `↓` / `→` / `PageDown` | one window further down (same as `Alt+Tab`) |
 | `Esc` | cancel without switching |
 | `Enter` / `Space` | switch to the selected window immediately |
 
@@ -165,7 +166,7 @@ This project is released under the **GNU General Public License v2.0 or later**
 
 ## 切换规则
 
-以列表 `a1 a2 b1 b2 c1 c2` 为例（最后一个在堆顶）：
+以自底向上的堆叠顺序 `a1 a2 b1 b2 c1 c2` 为例（最后一个在堆顶）：
 
 | 操作 | 切换到 | 切换后的层叠顺序 |
 | --- | --- | --- |
@@ -184,8 +185,8 @@ This project is released under the **GNU General Public License v2.0 or later**
 | --- | --- |
 | `Alt+Tab` | 向下一层（默认绑定） |
 | `Alt+Shift+Tab` | 向上一层 |
-| `↑` / `↓` / `←` / `→` | 同上，方向键也可用 |
-| `PageUp` / `PageDown` | 同上 |
+| `↑` / `←` / `PageUp` | 向上一层（同 `Alt+Shift+Tab`） |
+| `↓` / `→` / `PageDown` | 向下一层（同 `Alt+Tab`） |
 | `Esc` | 取消，不切换 |
 | `Enter` / `Space` | 立即切换到当前选中的窗口 |
 

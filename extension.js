@@ -50,8 +50,7 @@ const ITEM_SPACING = 8;
 
 const THUMB_WIDTH = 176;
 const THUMB_HEIGHT = 110;
-const CAPTION_WIDTH = 150;
-const CAPTION_ICON_SIZE = 16;
+const CAPTION_SPACING = 6;
 
 const FALLBACK_ICON = 'application-x-executable';
 
@@ -198,8 +197,6 @@ class SwitcherItem extends St.BoxLayout {
             y_align: Clutter.ActorAlign.START,
         });
 
-        this.window = entry.window;
-
         this._thumbBox = new St.Widget({
             style_class: 'z-order-switcher-thumb',
             width: THUMB_WIDTH,
@@ -220,11 +217,11 @@ class SwitcherItem extends St.BoxLayout {
             y_align: Clutter.ActorAlign.CENTER,
         });
         if (caption.layout_manager)
-            caption.layout_manager.spacing = 6;
+            caption.layout_manager.spacing = CAPTION_SPACING;
 
         const icon = new St.Icon({
             style_class: 'z-order-switcher-app-icon',
-            icon_size: CAPTION_ICON_SIZE,
+            icon_size: iconSize,
             fallback_icon_name: FALLBACK_ICON,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -243,7 +240,8 @@ class SwitcherItem extends St.BoxLayout {
             labelText.ellipsize = Pango.EllipsizeMode.END;
             labelText.line_wrap = false;
         }
-        this._label.set_width(CAPTION_WIDTH);
+        // Keep the caption as wide as the thumbnail, whatever the icon size.
+        this._label.set_width(THUMB_WIDTH - iconSize - CAPTION_SPACING);
         caption.add_child(this._label);
 
         this.add_child(caption);
@@ -253,7 +251,7 @@ class SwitcherItem extends St.BoxLayout {
      * A live preview of the window, scaled to fit the thumbnail box.
      *
      * @param {object} entry window plus its application
-     * @param {number} iconSize fallback icon size
+     * @param {number} iconSize application icon size
      * @returns {Clutter.Actor}
      */
     _createPreview(entry, iconSize) {
@@ -276,7 +274,7 @@ class SwitcherItem extends St.BoxLayout {
 
         const icon = new St.Icon({
             style_class: 'z-order-switcher-icon',
-            icon_size: Math.max(iconSize, 48),
+            icon_size: iconSize,
             fallback_icon_name: FALLBACK_ICON,
         });
         if (entry.app && entry.app.get_icon())
@@ -457,9 +455,9 @@ class SwitcherPopup extends St.BoxLayout {
                 continue;
             if (window.get_window_type() === Meta.WindowType.DESKTOP)
                 continue;
-            if (!window.get_compositor_private())
-                continue;
 
+            // A window without a compositor actor still belongs in the list;
+            // _createPreview() falls back to the application icon.
             entries.push({window, app: getWindowApp(window)});
         }
 
@@ -622,16 +620,16 @@ class SwitcherPopup extends St.BoxLayout {
         switch (event.get_key_symbol()) {
         case Clutter.KEY_Tab:
         case Clutter.KEY_KP_Tab:
-        case Clutter.KEY_Up:
+        case Clutter.KEY_Down:
         case Clutter.KEY_Right:
-        case Clutter.KEY_Page_Up:
+        case Clutter.KEY_Page_Down:
             this._select(1);
             return Clutter.EVENT_STOP;
 
         case Clutter.KEY_ISO_Left_Tab:
-        case Clutter.KEY_Down:
+        case Clutter.KEY_Up:
         case Clutter.KEY_Left:
-        case Clutter.KEY_Page_Down:
+        case Clutter.KEY_Page_Up:
             this._select(-1);
             return Clutter.EVENT_STOP;
 
@@ -712,7 +710,6 @@ class SwitcherPopup extends St.BoxLayout {
 export default class ZOrderAltTabExtension extends Extension {
     enable() {
         this._popup = null;
-        this._settings = this.getSettings();
 
         // Handler the shell installed for its own switcher. It is used to put
         // the stock behaviour back when this extension is disabled.
@@ -734,7 +731,6 @@ export default class ZOrderAltTabExtension extends Extension {
         }
 
         this._defaultHandler = null;
-        this._settings = null;
     }
 
     _makeHandler(direction) {
@@ -808,7 +804,10 @@ export default class ZOrderAltTabExtension extends Extension {
             return;
 
         const focused = global.display.get_focus_window();
-        const current = Math.max(windows.indexOf(focused), 0);
+        const focusedIndex = windows.indexOf(focused);
+        const current = focusedIndex >= 0
+            ? focusedIndex
+            : (direction > 0 ? -1 : 0);
         const count = windows.length;
         const next = windows[((current + direction) % count + count) % count];
 
@@ -835,9 +834,19 @@ export default class ZOrderAltTabExtension extends Extension {
 
         this._popup = popup;
 
-        if (!popup.showSwitcher(direction, mask)) {
+        let shown = false;
+        try {
+            shown = popup.showSwitcher(direction, mask);
+        } catch (e) {
+            logError(e, 'Z-Order Alt-Tab: failed to show the switcher');
+        }
+
+        if (!shown) {
+            // destroy() releases the grab and the stage handlers even when
+            // showSwitcher() failed halfway through.
             popup.destroy();
-            this._popup = null;
+            if (this._popup === popup)
+                this._popup = null;
         }
     }
 }
