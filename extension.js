@@ -190,7 +190,7 @@ function activateWindow(window, timestamp) {
  */
 const SwitcherItem = GObject.registerClass(
 class SwitcherItem extends St.BoxLayout {
-    _init(entry, iconSize) {
+    _init(entry, iconSize, thumbWidth, thumbHeight) {
         super._init({
             style_class: 'z-order-switcher-item',
             orientation: Clutter.Orientation.VERTICAL,
@@ -199,12 +199,12 @@ class SwitcherItem extends St.BoxLayout {
 
         this._thumbBox = new St.Widget({
             style_class: 'z-order-switcher-thumb',
-            width: THUMB_WIDTH,
-            height: THUMB_HEIGHT,
+            width: thumbWidth,
+            height: thumbHeight,
             layout_manager: new Clutter.BinLayout(),
         });
 
-        const preview = this._createPreview(entry, iconSize);
+        const preview = this._createPreview(entry, iconSize, thumbWidth, thumbHeight);
         preview.x_align = Clutter.ActorAlign.CENTER;
         preview.y_align = Clutter.ActorAlign.CENTER;
         this._thumbBox.add_child(preview);
@@ -241,7 +241,7 @@ class SwitcherItem extends St.BoxLayout {
             labelText.line_wrap = false;
         }
         // Keep the caption as wide as the thumbnail, whatever the icon size.
-        this._label.set_width(THUMB_WIDTH - iconSize - CAPTION_SPACING);
+        this._label.set_width(thumbWidth - iconSize - CAPTION_SPACING);
         caption.add_child(this._label);
 
         this.add_child(caption);
@@ -252,15 +252,17 @@ class SwitcherItem extends St.BoxLayout {
      *
      * @param {object} entry window plus its application
      * @param {number} iconSize application icon size
+     * @param {number} thumbWidth thumbnail box width
+     * @param {number} thumbHeight thumbnail box height
      * @returns {Clutter.Actor}
      */
-    _createPreview(entry, iconSize) {
+    _createPreview(entry, iconSize, thumbWidth, thumbHeight) {
         const windowActor = entry.window.get_compositor_private();
 
         if (windowActor) {
             try {
                 const rect = getWindowRect(entry.window) ?? {width: 16, height: 9};
-                const scale = Math.min(THUMB_WIDTH / rect.width, THUMB_HEIGHT / rect.height);
+                const scale = Math.min(thumbWidth / rect.width, thumbHeight / rect.height);
 
                 return new Clutter.Clone({
                     source: windowActor,
@@ -466,9 +468,12 @@ class SwitcherPopup extends St.BoxLayout {
 
     _buildItems() {
         const iconSize = this._settings.get_int('icon-size');
+        const scale = this._settings.get_int('preview-size') / 100;
+        const thumbWidth = Math.round(THUMB_WIDTH * scale);
+        const thumbHeight = Math.round(THUMB_HEIGHT * scale);
 
         for (const entry of this._entries) {
-            const item = new SwitcherItem(entry, iconSize);
+            const item = new SwitcherItem(entry, iconSize, thumbWidth, thumbHeight);
             this._items.push(item);
             this._itemBox.add_child(item);
         }

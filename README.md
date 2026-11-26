@@ -56,6 +56,7 @@ the system settings is respected.
 - **Current workspace only** (default on): turn it off to switch across all workspaces.
 - **Wrap around** (default on): continue at the other end of the list.
 - **Icon size**: size of the application icons, 16–64 px.
+- **Preview size** (default 125%): scale of the window previews, 75–200%.
 
 ## Installation
 
@@ -201,6 +202,7 @@ This project is released under the **GNU General Public License v2.0 or later**
 - **只切换当前工作区**（默认开启）：关掉后会在所有工作区的窗口之间切换。
 - **循环**（默认开启）：走到列表末尾后从堆顶继续。
 - **图标大小**：应用图标的像素大小（16–64）。
+- **预览大小**（默认 125%）：窗口缩略图的缩放比例（75–200%）。
 
 ## 安装
 

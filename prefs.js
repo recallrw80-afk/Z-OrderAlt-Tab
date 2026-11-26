@@ -64,5 +64,20 @@ export default class ZOrderAltTabPreferences extends ExtensionPreferences {
         settings.bind('icon-size', iconRow, 'value',
             Gio.SettingsBindFlags.DEFAULT);
         appearance.add(iconRow);
+
+        const previewRow = new Adw.SpinRow({
+            title: _('Preview size (%)'),
+            subtitle: _('Scale of the window previews in the switcher.'),
+            adjustment: new Gtk.Adjustment({
+                lower: 75,
+                upper: 200,
+                step_increment: 5,
+                page_increment: 25,
+                value: settings.get_int('preview-size'),
+            }),
+        });
+        settings.bind('preview-size', previewRow, 'value',
+            Gio.SettingsBindFlags.DEFAULT);
+        appearance.add(previewRow);
     }
 }

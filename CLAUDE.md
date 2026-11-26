@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | --- | --- |
 | `extension.js` | 全部运行时逻辑：接管快捷键、收集窗口、缩略图弹窗与按键处理 |
 | `prefs.js` | Adw 首选项窗口 |
-| `schemas/*.gschema.xml` | 三个设置项：`current-workspace-only`、`wrap-around`、`icon-size` |
+| `schemas/*.gschema.xml` | 四个设置项：`current-workspace-only`、`wrap-around`、`icon-size`、`preview-size` |
 | `stylesheet.css` | 弹窗样式（`.z-order-switcher*`） |
 | `Makefile` | `check` / `install` / `uninstall` / `pack` / `release` / `schemas` |
 | `tools/check-metadata.py` | 构建前校验 `metadata.json`（字段、uuid、HTML 转义） |
@@ -74,7 +74,7 @@ tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
 ## 架构
 
 两个入口：`extension.js` 是全部运行时逻辑；`prefs.js` 是独立的 Adw 设置窗口，
-把三个 GSettings key 直接 `bind` 到控件上，没有共享代码。UUID 只在
+把四个 GSettings key 直接 `bind` 到控件上，没有共享代码。UUID 只在
 `metadata.json` 里定义，Makefile 用 `sed` 读取它来拼安装目录和 zip 名。
 
 ### 运行时对象图
@@ -114,7 +114,8 @@ tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
 
 缩略图是 `Clutter.Clone` 克隆 `window.get_compositor_private()`，用窗口帧矩形缩放；
 没有 actor 时退回应用图标。`ClutterBinLayout` 在 mutter 48 里没有 `x_align`/`y_align`，
-对齐要设在子 actor 上。`icon-size` 同时控制标题行应用图标和回退图标的大小。
+对齐要设在子 actor 上。`icon-size` 同时控制标题行应用图标和回退图标的大小；
+`preview-size` 以百分比缩放缩略图（默认 125%），标题行宽度随之计算。
 
 弹窗整体是水平 `St.ScrollView`，放置在焦点窗口所在显示器，纵向位于工作区高度的
 `POPUP_TOP_FACTOR` 处，宽度最多为工作区的 90%（超宽时给 `ScrollView` 设宽并在
