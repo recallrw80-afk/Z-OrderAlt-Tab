@@ -72,6 +72,21 @@ schemas/org.gnome.shell.extensions.z-order-alt-tab.gschema.xml
   `tools/check-metadata.py` 会拦掉这种 markup。
 - `name` / `description` 只能是纯文本；`description` 里的段落用 `\n`，列表用 `*` 开头。
 
+> 已经存进 EGO 的乱码**不会**因为之后关掉网页翻译而恢复：那是数据库里的值，
+> 页面上的 `&amp;lt;font …` 只是 Django 又转义了一次。修的办法只有重新上传一个
+> metadata 干净的版本（或者在个人页删掉待审条目再传）。
+
+上传前先确认手里的 zip 是干净的：
+
+```bash
+unzip -p build/z-order-alt-tab@recallrw80-afk.shell-extension.zip metadata.json
+unzip -p build/z-order-alt-tab@recallrw80-afk.shell-extension.zip metadata.json |
+    python3 tools/check-metadata.py /dev/stdin
+```
+
+两个字段应该正好是 `Z-Order Alt-Tab` 和英文描述；如果上传页把它们显示成输入框，
+提交前手动确认内容，别让浏览器翻译插件改写。
+
 ## 2.6 上传前在本地验证这个 zip
 
 ```bash
