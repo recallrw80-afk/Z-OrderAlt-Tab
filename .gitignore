@@ -1,4 +1,4 @@
-build/
-schemas/gschemas.compiled
+build*/
 *.zip
+schemas/gschemas.compiled
 __pycache__/
