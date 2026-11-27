@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | --- | --- |
 | `extension.js` | 全部运行时逻辑：接管快捷键、收集窗口、缩略图弹窗与按键处理 |
 | `prefs.js` | Adw 首选项窗口 |
-| `schemas/*.gschema.xml` | 四个设置项：`current-workspace-only`、`wrap-around`、`icon-size`、`preview-size` |
+| `schemas/*.gschema.xml` | 六个设置项：`current-workspace-only`、`wrap-around`、`icon-size`、`preview-size`、`title-font-size`、`caption-spacing` |
 | `stylesheet.css` | 弹窗样式（`.z-order-switcher*`） |
 | `Makefile` | `check` / `install` / `uninstall` / `pack` / `release` / `schemas` |
 | `tools/check-metadata.py` | 构建前校验 `metadata.json`（字段、uuid、HTML 转义） |
@@ -38,12 +38,14 @@ make release    # make check + make pack
 make clean      # 删除 build/ 与 schemas/gschemas.compiled
 ```
 
-`make check` 做三件事，也可以单独跑其中一项：
+`make check` 依次编译 schema、校验 metadata、对两个 ESM 文件做 `node --check`，
+再 `py_compile` 截图工具；任何一步失败都会中断。也可以单独跑：
 
 ```bash
 glib-compile-schemas --strict --targetdir=schemas schemas
 python3 tools/check-metadata.py metadata.json
 cp extension.js /tmp/x.mjs && node --check /tmp/x.mjs   # prefs.js 同理
+python3 -m py_compile tools/screenshot.py
 ```
 
 复制成 `.mjs` 是必要的：仓库里没有 `package.json`，`node --check` 会把 `.js` 当
@@ -51,7 +53,8 @@ CommonJS 解析，遇到 ESM `import` 就报错。
 
 没有单元测试和 CI，`make check` 只查语法与 metadata。真正的验证必须在真实的
 GNOME Shell 会话里手动做：Alt+Tab / Shift+Alt+Tab / 方向键、Esc、松开修饰键提交、
-缩略图、以及禁用扩展后原生 Alt+Tab 是否恢复。
+缩略图、多行网格与纵向滚动、点击卡片、PrintScreen，以及禁用扩展后原生 Alt+Tab
+是否恢复。
 
 其他命令：
 
@@ -74,7 +77,7 @@ tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
 ## 架构
 
 两个入口：`extension.js` 是全部运行时逻辑；`prefs.js` 是独立的 Adw 设置窗口，
-把四个 GSettings key 直接 `bind` 到控件上，没有共享代码。UUID 只在
+把六个 GSettings key 直接 `bind` 到控件上，没有共享代码。UUID 只在
 `metadata.json` 里定义，Makefile 用 `sed` 读取它来拼安装目录和 zip 名。
 
 ### 运行时对象图
@@ -92,8 +95,9 @@ tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
 - **没有持久化的顺序模型**：每次弹出都从 mutter 重新读取实时堆叠顺序。“选中的窗口
   移到堆顶”不是代码在重排列表，而是 `_finish` 里 `Main.activateWindow()` 激活窗口后，
   mutter 自然把它抬到最上层。不要引入扩展自己维护的窗口列表。
-- 初始选中项 = 焦点窗口在列表中的下标 + direction；没有焦点时向下从 `-1` 开始（即
-  堆顶）。`wrap-around` 关闭时用 `clamp` 停在列表两端。
+- 初始选中项 = 焦点窗口在列表中的下标 + direction。没有焦点时向下从堆顶开始，
+  向上从堆底开始（关闭 `wrap-around` 时两者都 `clamp` 到堆顶）。`wrap-around`
+  关闭时 `_wrapIndex` 用 `clamp` 停在列表两端。
 - `_finish(index)` 是唯一出口：先 `popModal`、断开 stage 信号、`destroy()`，然后才激活
   窗口。`index === null` 表示取消（Esc，或抓取建立前修饰键就已松开）。
 
@@ -103,24 +107,33 @@ tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
 `vfunc_key_press_event` / `vfunc_key_release_event` 接收；仅连接 `global.stage` 的信号
 在抓取期间收不到事件（48.7 上已实测）。`global.stage` 上的 `key-press-event` /
 `key-release-event` 只是没拿到抓取时的兜底，handler 里用 `if (this._grab)` 让路。
-另外三个容易忽略的细节：
+另外几个容易忽略的细节：
 
 - `_minEventTime` 丢弃触发弹窗的那次按键事件，防止抓取建立后同一事件再被处理一遍。
 - 松开 Alt/Super/Ctrl 任一修饰键就提交；抓取建立后先用 `global.get_pointer()` 检查
   修饰键是否仍按着，若已松开则直接关闭、不做任何切换。
 - 弹窗延迟 `POPUP_SHOW_DELAY` 才淡入，快速点按 Alt+Tab 不会闪一下。
+- 抓取期间 shell 的全局截图快捷键不会触发，所以 `PrintScreen` / `Sys_Req` 由扩展
+  主动转发给 `Main.screenshotUI.open()`，并先把弹窗淡入完成、滚动到选中项；截图 UI
+  关闭后若修饰键已松开就提交。
+- 每张卡片都是 `reactive` 的，挂着 `Clutter.ClickAction`，点击卡片直接
+  `_finish(index)`，和 Enter 的效果一致。
 
 ### 绘制与布局
 
 缩略图是 `Clutter.Clone` 克隆 `window.get_compositor_private()`，用窗口帧矩形缩放；
 没有 actor 时退回应用图标。`ClutterBinLayout` 在 mutter 48 里没有 `x_align`/`y_align`，
 对齐要设在子 actor 上。`icon-size` 同时控制标题行应用图标和回退图标的大小；
-`preview-size` 以百分比缩放缩略图（默认 125%），标题行宽度随之计算。
+`preview-size` 以百分比缩放缩略图（默认 125%），标题行宽度随之计算。`title-font-size`
+控制标题字号（内联 `font-size`），`caption-spacing` 控制图标与标题的间距，标题宽度 =
+缩略图宽 − 图标宽 − 间距（最小 1px）。
 
-弹窗整体是水平 `St.ScrollView`，放置在焦点窗口所在显示器，纵向位于工作区高度的
-`POPUP_TOP_FACTOR` 处，宽度最多为工作区的 90%（超宽时给 `ScrollView` 设宽并在
-`_ensureVisible` 里滚动到选中项）。所有样式类以 `.z-order-switcher*` 为前缀，
-定义在 `stylesheet.css`。
+弹窗整体是一个 `St.ScrollView`，内容按**行优先**排成网格：列数由工作区宽度、缩略图宽度
+和每张卡片的固定外框（`ITEM_CHROME_WIDTH`）自动算出，放不下的窗口换到下一行。弹窗放在
+焦点窗口所在显示器，纵向位于工作区高度的 `POPUP_TOP_FACTOR` 处；宽度最多为工作区的 90%，
+高度最多为 `POPUP_MAX_HEIGHT_FACTOR`（72%）。超出时由 `_ensureVisible` 同时调整水平/垂直
+adjustment，滚动到选中项。所有样式类以 `.z-order-switcher*` 为前缀，定义在
+`stylesheet.css`。
 
 ### 快捷键接管与恢复
 
@@ -129,13 +142,15 @@ Alt+Tab 在不同发行版上分别绑定到 `switch-applications` 或 `switch-w
 `Main.wm.setCustomKeybindingHandler()`，不可用时退回
 `Meta.keybindings_set_custom_handler()` + `Main.wm.allowKeybinding()`。
 
-`disable()` 时按优先级恢复：
+`enable()` 时先把 `Main.wm._startSwitcher` 捕获为 `_defaultHandler`；`disable()`
+时按优先级恢复：
 
-1. `Main.wm._startSwitcher`（GNOME 原生切换器，48 上有效）；
+1. `_defaultHandler`（`_startSwitcher`，GNOME 原生切换器，48 上有效）；
 2. `Main.wm._startAppSwitcher`；
 3. 兜底的 MRU 直接切换（`_switchMru`），保证不会留下失效的 Alt+Tab。
 
-注意 `Meta.keybindings_set_custom_handler(name, null)` **不会**恢复默认处理器（48 上实测）。
+三条路径都复用 `_installHandler()` 重新注册。注意
+`Meta.keybindings_set_custom_handler(name, null)` **不会**恢复默认处理器（48 上实测）。
 
 ### 构建、兼容与发布
 
@@ -157,6 +172,8 @@ Alt+Tab 在不同发行版上分别绑定到 `switch-applications` 或 `switch-w
 - 改动前先阅读相关模块。
 - 保持与现有代码风格一致：4 空格缩进、单引号、`GObject.registerClass`、
   SPDX 头（GPL-2.0-or-later）。
-- **不做任何“自动提交”**：只有用户松开修饰键、Enter/Space 才切换，Esc 取消；
-  不要重新引入空闲超时自动提交。
+- **不做任何“自动提交”**：只有用户松开修饰键、Enter/Space 或点击卡片才切换，
+  Esc 取消；不要重新引入空闲超时自动提交。
+- 新增/修改设置项要同时改 `schemas/*.gschema.xml`（默认值与 range）、`prefs.js`
+  （控件与 Adjustment 范围）、`extension.js`（读取处）和 `README.md` 的中英文两节。
 - 改完跑 `make check`；不要在仓库里提交 `build/` 和 `schemas/gschemas.compiled`。

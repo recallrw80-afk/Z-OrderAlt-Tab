@@ -33,7 +33,7 @@
 }
 
 .z-order-switcher-title {
-    font-size: 8.5pt;
+    /* The font size comes from the title-font-size setting. */
     color: rgba(244, 244, 245, 0.92);
 }
 

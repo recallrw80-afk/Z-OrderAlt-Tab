@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Take a screenshot after a delay, through the XDG desktop portal.
 
-The window switcher holds a modal keyboard grab while it is open, so the
-shell's PrintScreen keybinding does not fire. Start this script first, then
-hold Alt+Tab and press Tab a few times; the screenshot is taken while the
-switcher is on screen.
+The switcher forwards PrintScreen to the shell's screenshot UI, but this
+helper is still handy for delayed or scripted captures. Start this script
+first, then hold Alt+Tab and press Tab a few times; the screenshot is taken
+while the switcher is on screen.
 
 Usage:
     tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png

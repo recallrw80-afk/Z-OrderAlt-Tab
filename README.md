@@ -29,9 +29,10 @@ The first Alt+Tab selects the window directly below the focused one; if nothing
 is focused, it starts at the top.
 
 The popup shows a live thumbnail, the application icon and the window title for
-each window, and scrolls horizontally. The extension never commits on its own:
-only releasing the modifier (or Enter/Space) switches, Escape cancels. There is
-no idle timeout.
+each window. Cards wrap into a grid with as many columns as fit on the monitor;
+when the rows no longer fit, the list scrolls vertically. The extension never
+commits on its own: only releasing the modifier (or Enter/Space, or clicking a
+card) switches, Escape cancels. There is no idle timeout.
 
 ## Controls
 
@@ -43,6 +44,8 @@ no idle timeout.
 | `↓` / `→` / `PageDown` | one window further down (same as `Alt+Tab`) |
 | `Esc` | cancel without switching |
 | `Enter` / `Space` | switch to the selected window immediately |
+| `PrintScreen` | open the screenshot UI, keeping the switcher in the capture |
+| Click a card | switch to that window immediately |
 
 The keybindings are GNOME's `switch-applications` / `switch-applications-backward`
 and `switch-windows` / `switch-windows-backward`. Distributions bind Alt+Tab to
@@ -57,6 +60,9 @@ the system settings is respected.
 - **Wrap around** (default on): continue at the other end of the list.
 - **Icon size**: size of the application icons, 16–64 px.
 - **Preview size** (default 125%): scale of the window previews, 75–200%.
+- **Title font size** (default 9 pt): size of the window titles, 7–24 pt.
+- **Icon–text spacing** (default 10 px): gap between the application icon and the
+  title, 0–32 px.
 
 ## Installation
 
@@ -90,9 +96,9 @@ make pack                    # build/z-order-alt-tab@recallrw80-afk.shell-extens
 
 ## Taking a screenshot of the switcher
 
-The popup takes a modal keyboard grab while it is open, so pressing PrintScreen
-does not reach the shell's screenshot UI. Ask the XDG portal for a delayed
-capture instead:
+While the switcher is open, PrintScreen is forwarded to the shell's screenshot
+UI and the popup stays visible in the captured image. The XDG portal helper is
+still useful for delayed or scripted captures without touching the keyboard:
 
 ```bash
 tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png
@@ -177,8 +183,9 @@ This project is released under the **GNU General Public License v2.0 or later**
 也就是说：**被切换到的窗口会移动到列表末尾（堆顶）**，其余窗口的相对顺序不变。
 第一次按 Alt+Tab 默认选中当前焦点窗口下面那一层；如果没有焦点窗口，则从堆顶开始。
 
-弹窗显示每个窗口的实时缩略图 + 图标 + 标题，左右滚动。扩展不会自己提交：只有松开
-修饰键（或按 Enter/Space）才切换，Esc 取消，没有空闲超时自动提交。
+弹窗显示每个窗口的实时缩略图 + 图标 + 标题；卡片按显示器宽度自动排成多行网格，
+行数放不下时纵向滚动。扩展不会自己提交：只有松开修饰键（或按 Enter/Space、点击卡片）
+才切换，Esc 取消，没有空闲超时自动提交。
 
 ## 交互
 
@@ -190,6 +197,8 @@ This project is released under the **GNU General Public License v2.0 or later**
 | `↓` / `→` / `PageDown` | 向下一层（同 `Alt+Tab`） |
 | `Esc` | 取消，不切换 |
 | `Enter` / `Space` | 立即切换到当前选中的窗口 |
+| `PrintScreen` | 打开系统截图界面，切换器会留在截图里 |
+| 鼠标点击卡片 | 立即切换到该窗口 |
 
 按键绑定沿用 GNOME 的 `switch-applications` / `switch-applications-backward`
 和 `switch-windows` / `switch-windows-backward`。不同发行版会把 Alt+Tab 绑到
@@ -203,6 +212,8 @@ This project is released under the **GNU General Public License v2.0 or later**
 - **循环**（默认开启）：走到列表末尾后从堆顶继续。
 - **图标大小**：应用图标的像素大小（16–64）。
 - **预览大小**（默认 125%）：窗口缩略图的缩放比例（75–200%）。
+- **标题字号**（默认 9 pt）：窗口标题的磅值（7–24）。
+- **图标—文字间距**（默认 10 px）：应用图标和标题之间的空隙（0–32）。
 
 ## 安装
 
@@ -236,8 +247,8 @@ make pack                    # build/z-order-alt-tab@recallrw80-afk.shell-extens
 
 ## 给切换器截图
 
-弹窗打开期间会抓走键盘，所以按 PrintScreen 不会触发桌面的截图界面。用附带的
-小工具通过 XDG portal 做延时截图：
+切换器打开期间按 PrintScreen 会把按键转交给桌面的截图界面，切换器本身也会留在
+截图里。如果想要不碰键盘的延时截图，仍可用附带的小工具通过 XDG portal 截图：
 
 ```bash
 tools/screenshot.py --delay 5 --output ~/Pictures/switcher.png

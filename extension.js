@@ -45,12 +45,20 @@ const POPUP_SHOW_DELAY = 150;
 const POPUP_FADE_TIME = 120;
 const POPUP_TOP_FACTOR = 0.24;
 const POPUP_MAX_WIDTH_FACTOR = 0.9;
+const POPUP_MAX_HEIGHT_FACTOR = 0.72;
 const POPUP_MARGIN = 24;
 const ITEM_SPACING = 8;
 
 const THUMB_WIDTH = 176;
 const THUMB_HEIGHT = 110;
-const CAPTION_SPACING = 6;
+
+// Horizontal room a card takes beyond its thumbnail: item padding 8px,
+// border 1px and margin 4px on each side.
+const ITEM_CHROME_WIDTH = 26;
+// Popup padding 10px and border 1px on each side, plus a little slack.
+const POPUP_CHROME_WIDTH = 24;
+// Room reserved for the scrollbar when the grid is taller than the screen.
+const SCROLLBAR_ALLOWANCE = 16;
 
 const FALLBACK_ICON = 'application-x-executable';
 
@@ -190,11 +198,12 @@ function activateWindow(window, timestamp) {
  */
 const SwitcherItem = GObject.registerClass(
 class SwitcherItem extends St.BoxLayout {
-    _init(entry, iconSize, thumbWidth, thumbHeight) {
+    _init(entry, iconSize, thumbWidth, thumbHeight, captionSpacing, fontSize) {
         super._init({
             style_class: 'z-order-switcher-item',
             orientation: Clutter.Orientation.VERTICAL,
             y_align: Clutter.ActorAlign.START,
+            reactive: true,
         });
 
         this._thumbBox = new St.Widget({
@@ -217,7 +226,7 @@ class SwitcherItem extends St.BoxLayout {
             y_align: Clutter.ActorAlign.CENTER,
         });
         if (caption.layout_manager)
-            caption.layout_manager.spacing = CAPTION_SPACING;
+            caption.layout_manager.spacing = captionSpacing;
 
         const icon = new St.Icon({
             style_class: 'z-order-switcher-app-icon',
@@ -241,7 +250,8 @@ class SwitcherItem extends St.BoxLayout {
             labelText.line_wrap = false;
         }
         // Keep the caption as wide as the thumbnail, whatever the icon size.
-        this._label.set_width(thumbWidth - iconSize - CAPTION_SPACING);
+        this._label.set_width(Math.max(1, thumbWidth - iconSize - captionSpacing));
+        this._label.set_style(`font-size: ${fontSize}pt;`);
         caption.add_child(this._label);
 
         this.add_child(caption);
@@ -313,6 +323,7 @@ class SwitcherPopup extends St.BoxLayout {
         this._grab = null;
         this._stageHandlers = [];
         this._showTimeoutId = 0;
+        this._screenshotClosedId = 0;
         this._closing = false;
         this._minEventTime = 0;
         this._modifierMask = 0;
@@ -326,7 +337,7 @@ class SwitcherPopup extends St.BoxLayout {
 
         this._itemBox = new St.BoxLayout({
             style_class: 'z-order-switcher-box',
-            orientation: Clutter.Orientation.HORIZONTAL,
+            orientation: Clutter.Orientation.VERTICAL,
             y_expand: true,
         });
 
@@ -351,7 +362,15 @@ class SwitcherPopup extends St.BoxLayout {
         if (this._entries.length < 2)
             return false;
 
-        this._buildItems();
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(this._getMonitorIndex());
+        const maxWidth = Math.round(workArea.width * POPUP_MAX_WIDTH_FACTOR);
+        const iconSize = this._settings.get_int('icon-size');
+        const scale = this._settings.get_int('preview-size') / 100;
+        const thumbWidth = Math.round(THUMB_WIDTH * scale);
+        const thumbHeight = Math.round(THUMB_HEIGHT * scale);
+
+        this._buildItems(iconSize, thumbWidth, thumbHeight,
+            this._columnCount(maxWidth, thumbWidth));
 
         // Ignore the key event that triggered us; it may still be delivered
         // to the popup after the grab below is taken.
@@ -466,17 +485,53 @@ class SwitcherPopup extends St.BoxLayout {
         return entries;
     }
 
-    _buildItems() {
-        const iconSize = this._settings.get_int('icon-size');
-        const scale = this._settings.get_int('preview-size') / 100;
-        const thumbWidth = Math.round(THUMB_WIDTH * scale);
-        const thumbHeight = Math.round(THUMB_HEIGHT * scale);
+    /**
+     * How many cards fit in one row.
+     *
+     * @param {number} maxWidth maximum popup width
+     * @param {number} thumbWidth thumbnail width of one card
+     * @returns {number}
+     */
+    _columnCount(maxWidth, thumbWidth) {
+        const usableWidth = maxWidth - POPUP_CHROME_WIDTH - SCROLLBAR_ALLOWANCE;
+        const itemWidth = thumbWidth + ITEM_CHROME_WIDTH;
+        return Math.max(1,
+            Math.floor((usableWidth + ITEM_SPACING) / (itemWidth + ITEM_SPACING)));
+    }
 
-        for (const entry of this._entries) {
-            const item = new SwitcherItem(entry, iconSize, thumbWidth, thumbHeight);
+    /**
+     * Lay the entries out row by row, topmost window first.
+     *
+     * @param {number} iconSize application icon size
+     * @param {number} thumbWidth thumbnail width
+     * @param {number} thumbHeight thumbnail height
+     * @param {number} columns cards per row
+     */
+    _buildItems(iconSize, thumbWidth, thumbHeight, columns) {
+        const captionSpacing = this._settings.get_int('caption-spacing');
+        const fontSize = this._settings.get_int('title-font-size');
+
+        let row = null;
+        this._entries.forEach((entry, index) => {
+            if (index % columns === 0) {
+                row = new St.BoxLayout({
+                    style_class: 'z-order-switcher-row',
+                    orientation: Clutter.Orientation.HORIZONTAL,
+                    x_expand: true,
+                });
+                if (row.layout_manager)
+                    row.layout_manager.spacing = ITEM_SPACING;
+                this._itemBox.add_child(row);
+            }
+
+            const item = new SwitcherItem(
+                entry, iconSize, thumbWidth, thumbHeight, captionSpacing, fontSize);
+            const clickAction = new Clutter.ClickAction();
+            clickAction.connect('clicked', () => this._finish(index));
+            item.add_action(clickAction);
             this._items.push(item);
-            this._itemBox.add_child(item);
-        }
+            row.add_child(item);
+        });
     }
 
     _initialIndex(direction) {
@@ -519,30 +574,46 @@ class SwitcherPopup extends St.BoxLayout {
         });
     }
 
-    _position() {
-        if (typeof this.ensure_style === 'function')
-            this.ensure_style();
-
+    /**
+     * Monitor to place the popup on: the focused window's, or the primary.
+     *
+     * @returns {number}
+     */
+    _getMonitorIndex() {
         const focused = global.display.get_focus_window();
         let monitorIndex = getWindowMonitor(focused);
         if (monitorIndex < 0)
             monitorIndex = Main.layoutManager.primaryIndex;
-        monitorIndex = clamp(monitorIndex, 0, Main.layoutManager.monitors.length - 1);
+        return clamp(monitorIndex, 0, Main.layoutManager.monitors.length - 1);
+    }
 
-        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
+    _position() {
+        if (typeof this.ensure_style === 'function')
+            this.ensure_style();
+
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(this._getMonitorIndex());
         const maxWidth = Math.round(workArea.width * POPUP_MAX_WIDTH_FACTOR);
+        const maxHeight = Math.round(workArea.height * POPUP_MAX_HEIGHT_FACTOR);
+
+        const node = this.get_theme_node();
+        const horizontalExtra =
+            node.get_padding(St.Side.LEFT) + node.get_padding(St.Side.RIGHT) +
+            node.get_border_width(St.Side.LEFT) + node.get_border_width(St.Side.RIGHT);
+        const verticalExtra =
+            node.get_padding(St.Side.TOP) + node.get_padding(St.Side.BOTTOM) +
+            node.get_border_width(St.Side.TOP) + node.get_border_width(St.Side.BOTTOM);
 
         let [, naturalWidth] = this.get_preferred_width(-1);
         if (naturalWidth > maxWidth) {
-            const node = this.get_theme_node();
-            const extra =
-                node.get_padding(St.Side.LEFT) + node.get_padding(St.Side.RIGHT) +
-                node.get_border_width(St.Side.LEFT) + node.get_border_width(St.Side.RIGHT);
-            this._scrollView.set_width(Math.max(120, maxWidth - extra));
+            this._scrollView.set_width(Math.max(120, maxWidth - horizontalExtra));
             [, naturalWidth] = this.get_preferred_width(-1);
         }
 
-        const [, naturalHeight] = this.get_preferred_height(-1);
+        let [, naturalHeight] = this.get_preferred_height(-1);
+        if (naturalHeight > maxHeight) {
+            this._scrollView.set_height(Math.max(120, maxHeight - verticalExtra));
+            [, naturalHeight] = this.get_preferred_height(-1);
+        }
 
         const x = workArea.x + Math.round((workArea.width - naturalWidth) / 2);
         const y = clamp(
@@ -560,20 +631,30 @@ class SwitcherPopup extends St.BoxLayout {
             return;
 
         const item = this._items[this._selectedIndex];
-        if (!item)
+        if (!item || !item.width || !item.height)
             return;
 
-        const hadjustment = this._scrollView.get_hadjustment();
-        if (!hadjustment || !hadjustment.page_size)
+        // Position relative to the scrollable content; both actors move with
+        // the scroll offset, so the difference is content-relative.
+        const [contentX, contentY] = this._itemBox.get_transformed_position();
+        const [itemX, itemY] = item.get_transformed_position();
+        const left = itemX - contentX;
+        const top = itemY - contentY;
+
+        this._scrollTo(this._scrollView.get_hadjustment(),
+            left, left + item.width);
+        this._scrollTo(this._scrollView.get_vadjustment(),
+            top, top + item.height);
+    }
+
+    _scrollTo(adjustment, start, end) {
+        if (!adjustment || !adjustment.page_size)
             return;
 
-        const left = item.x;
-        const right = item.x + item.width;
-
-        if (left < hadjustment.value)
-            hadjustment.set_value(left);
-        else if (right > hadjustment.value + hadjustment.page_size)
-            hadjustment.set_value(right - hadjustment.page_size);
+        if (start < adjustment.value)
+            adjustment.set_value(start);
+        else if (end > adjustment.value + adjustment.page_size)
+            adjustment.set_value(end - adjustment.page_size);
     }
 
     /**
@@ -638,6 +719,11 @@ class SwitcherPopup extends St.BoxLayout {
             this._select(-1);
             return Clutter.EVENT_STOP;
 
+        case Clutter.KEY_Print:
+        case Clutter.KEY_Sys_Req:
+            this._openScreenshotUI();
+            return Clutter.EVENT_STOP;
+
         case Clutter.KEY_Escape:
             this._finish(null);
             return Clutter.EVENT_STOP;
@@ -665,6 +751,64 @@ class SwitcherPopup extends St.BoxLayout {
         }
 
         return Clutter.EVENT_PROPAGATE;
+    }
+
+    /**
+     * Hand PrintScreen to the shell's screenshot UI while keeping the switcher
+     * visible, so the switcher itself ends up in the capture.
+     */
+    _openScreenshotUI() {
+        // The capture is taken from the stage, so finish a pending fade-in and
+        // make sure the selected card is already scrolled into view.
+        if (this._showTimeoutId) {
+            GLib.source_remove(this._showTimeoutId);
+            this._showTimeoutId = 0;
+        }
+        this.remove_all_transitions();
+        this.opacity = 255;
+        this._ensureVisible();
+
+        const ui = Main.screenshotUI;
+        if (!ui || typeof ui.open !== 'function')
+            return;
+
+        if (!this._screenshotClosedId) {
+            let id = 0;
+            id = ui.connect('closed', () => {
+                ui.disconnect(id);
+                this._screenshotClosedId = 0;
+
+                if (this._closing)
+                    return;
+
+                // Key events went to the screenshot UI; if the modifier was
+                // released meanwhile, commit like a normal modifier release.
+                if (this._modifierMask) {
+                    const [, , mods] = global.get_pointer();
+                    if (!(mods & this._modifierMask))
+                        this._finish(this._selectedIndex);
+                }
+            });
+            this._screenshotClosedId = id;
+        }
+
+        const result = ui.open();
+        if (result && typeof result.catch === 'function') {
+            result.catch(e => {
+                logError(e, 'Z-Order Alt-Tab: could not open the screenshot UI');
+            });
+        }
+    }
+
+    _disconnectScreenshotUI() {
+        if (!this._screenshotClosedId)
+            return;
+
+        const id = this._screenshotClosedId;
+        this._screenshotClosedId = 0;
+
+        if (Main.screenshotUI)
+            Main.screenshotUI.disconnect(id);
     }
 
     _finish(index) {
@@ -705,6 +849,7 @@ class SwitcherPopup extends St.BoxLayout {
             this._showTimeoutId = 0;
         }
 
+        this._disconnectScreenshotUI();
         this._disconnectStage();
         this._popGrab();
         this._items = [];

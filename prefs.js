@@ -15,7 +15,7 @@ export default class ZOrderAltTabPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
-        window.set_default_size(520, 320);
+        window.set_default_size(520, 460);
 
         const page = new Adw.PreferencesPage({
             title: _('General'),
@@ -79,5 +79,35 @@ export default class ZOrderAltTabPreferences extends ExtensionPreferences {
         settings.bind('preview-size', previewRow, 'value',
             Gio.SettingsBindFlags.DEFAULT);
         appearance.add(previewRow);
+
+        const fontRow = new Adw.SpinRow({
+            title: _('Title font size'),
+            subtitle: _('Size of the window titles in points.'),
+            adjustment: new Gtk.Adjustment({
+                lower: 7,
+                upper: 24,
+                step_increment: 1,
+                page_increment: 2,
+                value: settings.get_int('title-font-size'),
+            }),
+        });
+        settings.bind('title-font-size', fontRow, 'value',
+            Gio.SettingsBindFlags.DEFAULT);
+        appearance.add(fontRow);
+
+        const spacingRow = new Adw.SpinRow({
+            title: _('Icon–text spacing'),
+            subtitle: _('Gap in pixels between the application icon and the window title.'),
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 32,
+                step_increment: 2,
+                page_increment: 8,
+                value: settings.get_int('caption-spacing'),
+            }),
+        });
+        settings.bind('caption-spacing', spacingRow, 'value',
+            Gio.SettingsBindFlags.DEFAULT);
+        appearance.add(spacingRow);
     }
 }

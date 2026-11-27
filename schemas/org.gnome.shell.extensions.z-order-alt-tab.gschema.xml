@@ -35,5 +35,17 @@
       <summary>Preview size</summary>
       <description>Scale in percent of the window previews shown in the switcher.</description>
     </key>
+    <key name="title-font-size" type="i">
+      <default>9</default>
+      <range min="7" max="24"/>
+      <summary>Title font size</summary>
+      <description>Size in points of the window titles shown in the switcher.</description>
+    </key>
+    <key name="caption-spacing" type="i">
+      <default>10</default>
+      <range min="0" max="32"/>
+      <summary>Icon to text spacing</summary>
+      <description>Gap in pixels between the application icon and the window title.</description>
+    </key>
   </schema>
 </schemalist>
