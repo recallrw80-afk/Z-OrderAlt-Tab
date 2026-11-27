@@ -267,10 +267,10 @@ class SwitcherItem extends St.BoxLayout {
      * @returns {Clutter.Actor}
      */
     _createPreview(entry, iconSize, thumbWidth, thumbHeight) {
-        const windowActor = entry.window.get_compositor_private();
+        try {
+            const windowActor = entry.window.get_compositor_private();
 
-        if (windowActor) {
-            try {
+            if (windowActor) {
                 const rect = getWindowRect(entry.window) ?? {width: 16, height: 9};
                 const scale = Math.min(thumbWidth / rect.width, thumbHeight / rect.height);
 
@@ -279,9 +279,9 @@ class SwitcherItem extends St.BoxLayout {
                     width: Math.max(1, Math.round(rect.width * scale)),
                     height: Math.max(1, Math.round(rect.height * scale)),
                 });
-            } catch (e) {
-                logError(e, 'Z-Order Alt-Tab: could not build window preview');
             }
+        } catch (e) {
+            logError(e, 'Z-Order Alt-Tab: could not build window preview');
         }
 
         const icon = new St.Icon({
@@ -312,7 +312,8 @@ class SwitcherPopup extends St.BoxLayout {
             orientation: Clutter.Orientation.HORIZONTAL,
             reactive: true,
             can_focus: true,
-            visible: true,
+            // Stay hidden until showSwitcher() has allocated the popup.
+            visible: false,
             opacity: 0,
         });
 
@@ -327,6 +328,7 @@ class SwitcherPopup extends St.BoxLayout {
         this._closing = false;
         this._minEventTime = 0;
         this._modifierMask = 0;
+        this._triggerKeysym = 0;
 
         this._scrollView = new St.ScrollView({
             style_class: 'z-order-switcher-scroll',
@@ -355,9 +357,10 @@ class SwitcherPopup extends St.BoxLayout {
      *
      * @param {number} direction 1 to walk down the stack, -1 to walk up
      * @param {number} mask modifier state of the triggering key event
+     * @param {number} triggerKeysym keysym that opened the switcher
      * @returns {boolean} whether the switcher was shown
      */
-    showSwitcher(direction, mask) {
+    showSwitcher(direction, mask, triggerKeysym = 0) {
         this._entries = this._collectEntries();
         if (this._entries.length < 2)
             return false;
@@ -376,6 +379,7 @@ class SwitcherPopup extends St.BoxLayout {
         // to the popup after the grab below is taken.
         this._minEventTime = global.get_current_time();
         this._modifierMask = primaryModifier(mask);
+        this._triggerKeysym = triggerKeysym;
 
         const uiGroup = getUiGroup();
         if (!uiGroup) {
@@ -394,7 +398,7 @@ class SwitcherPopup extends St.BoxLayout {
             try {
                 this._grab = Main.pushModal(this, {
                     timestamp: global.get_current_time(),
-                    actionMode: Shell.ActionMode.NORMAL,
+                    actionMode: Shell.ActionMode.NONE,
                 });
             } catch (e2) {
                 logError(e2, 'Z-Order Alt-Tab: could not push a modal grab');
@@ -413,6 +417,14 @@ class SwitcherPopup extends St.BoxLayout {
         this._selectedIndex = this._initialIndex(direction);
         this._syncSelection();
         this._position();
+
+        // Make the popup visible only after positioning, then force the
+        // allocation synchronously. A visible actor that still needs an
+        // allocation during a stage view update makes mutter log a warning
+        // for every actor in the tree and skip that update.
+        this.visible = true;
+        this.get_allocation_box();
+
         this.grab_key_focus();
 
         // The modifier may have been released before the grab was taken, in
@@ -743,9 +755,26 @@ class SwitcherPopup extends St.BoxLayout {
         if (this._closing)
             return Clutter.EVENT_STOP;
 
-        // Releasing the modifier that summoned the switcher commits the
-        // selection, just like the built-in Alt-Tab.
-        if (MODIFIER_KEYSYMS.has(event.get_key_symbol())) {
+        const keysym = event.get_key_symbol();
+
+        if (this._modifierMask) {
+            // Releasing the modifier that summoned the switcher commits, just
+            // like the built-in Alt-Tab. Check the actual modifier state, so
+            // releasing some other modifier (Alt while Super is still held,
+            // for example) does not commit.
+            if (!MODIFIER_KEYSYMS.has(keysym))
+                return Clutter.EVENT_PROPAGATE;
+
+            const [, , mods] = global.get_pointer();
+            if ((mods & this._modifierMask) === 0)
+                this._finish(this._selectedIndex);
+
+            return Clutter.EVENT_STOP;
+        }
+
+        // No primary modifier was held (a bare key or Shift+key binding):
+        // releasing the key that summoned the switcher commits.
+        if (this._triggerKeysym && keysym === this._triggerKeysym) {
             this._finish(this._selectedIndex);
             return Clutter.EVENT_STOP;
         }
@@ -792,11 +821,15 @@ class SwitcherPopup extends St.BoxLayout {
             this._screenshotClosedId = id;
         }
 
-        const result = ui.open();
-        if (result && typeof result.catch === 'function') {
-            result.catch(e => {
-                logError(e, 'Z-Order Alt-Tab: could not open the screenshot UI');
-            });
+        try {
+            const result = ui.open();
+            if (result && typeof result.catch === 'function') {
+                result.catch(e => {
+                    logError(e, 'Z-Order Alt-Tab: could not open the screenshot UI');
+                });
+            }
+        } catch (e) {
+            logError(e, 'Z-Order Alt-Tab: could not open the screenshot UI');
         }
     }
 
@@ -854,6 +887,7 @@ class SwitcherPopup extends St.BoxLayout {
         this._popGrab();
         this._items = [];
         this._entries = [];
+        this._triggerKeysym = 0;
     }
 });
 
@@ -893,13 +927,14 @@ export default class ZOrderAltTabExtension extends Extension {
      *
      * @param {string} name keybinding name
      * @param {Function} handler handler to install
+     * @param {number} [modes] action modes to allow the binding in
      * @returns {boolean} whether the handler was installed
      */
-    _installHandler(name, handler) {
+    _installHandler(name, handler, modes = ACTION_MODES) {
         try {
             if (Main.wm && typeof Main.wm.setCustomKeybindingHandler === 'function') {
                 Main.wm.setCustomKeybindingHandler(
-                    name, ACTION_MODES, handler, Meta.KeyBindingFlags.NONE);
+                    name, modes, handler, Meta.KeyBindingFlags.NONE);
                 return true;
             }
         } catch (e) {
@@ -912,7 +947,7 @@ export default class ZOrderAltTabExtension extends Extension {
 
             const installed = Meta.keybindings_set_custom_handler(name, handler);
             if (installed && Main.wm && typeof Main.wm.allowKeybinding === 'function')
-                Main.wm.allowKeybinding(name, ACTION_MODES);
+                Main.wm.allowKeybinding(name, modes);
             return installed;
         } catch (e) {
             logError(e, `Z-Order Alt-Tab: could not install a handler for ${name}`);
@@ -935,11 +970,13 @@ export default class ZOrderAltTabExtension extends Extension {
                 : null);
 
         if (stock) {
-            this._installHandler(name, stock);
+            // The shell registers its own Alt-Tab handlers for NORMAL only.
+            this._installHandler(name, stock, Shell.ActionMode.NORMAL);
             return;
         }
 
-        this._installHandler(name, () => this._switchMru(direction));
+        this._installHandler(name, () => this._switchMru(direction),
+            Shell.ActionMode.NORMAL);
     }
 
     /**
@@ -968,6 +1005,9 @@ export default class ZOrderAltTabExtension extends Extension {
         const mask = event && typeof event.get_state === 'function'
             ? event.get_state()
             : 0;
+        const triggerKeysym = event && typeof event.get_key_symbol === 'function'
+            ? event.get_key_symbol()
+            : 0;
 
         if (this._popup) {
             // The popup normally owns the keyboard through its modal grab;
@@ -986,7 +1026,7 @@ export default class ZOrderAltTabExtension extends Extension {
 
         let shown = false;
         try {
-            shown = popup.showSwitcher(direction, mask);
+            shown = popup.showSwitcher(direction, mask, triggerKeysym);
         } catch (e) {
             logError(e, 'Z-Order Alt-Tab: failed to show the switcher');
         }

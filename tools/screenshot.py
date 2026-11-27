@@ -33,14 +33,20 @@ def take_screenshot(delay):
     """Ask the portal for a screenshot after delay seconds; return the URI."""
     bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     loop = GLib.MainLoop()
-    result = {"uri": None, "code": None}
+    result = {"uri": None, "code": None, "handle": None}
 
     def on_response(_connection, _sender, _path, _iface, _signal, params):
+        # The portal is a shared service; ignore responses to other requests.
+        if result["handle"] is None or _path != result["handle"]:
+            return
+
         code, results = params.unpack()
         result["code"] = code
         result["uri"] = results.get("uri")
         loop.quit()
 
+    # Subscribe before asking for the screenshot so a fast response cannot be
+    # missed; the callback filters on the request handle returned below.
     bus.signal_subscribe(
         PORTAL, "org.freedesktop.portal.Request", "Response",
         None, None, Gio.DBusSignalFlags.NONE, on_response,
@@ -55,7 +61,9 @@ def take_screenshot(delay):
                 GLib.VariantType.new("(o)"),
                 Gio.DBusCallFlags.NONE, -1, None,
             )
-            print(f"taking the screenshot in {delay}s (request {reply.unpack()[0]})")
+            handle = reply.unpack()[0]
+            result["handle"] = handle
+            print(f"taking the screenshot in {delay}s (request {handle})")
         except Exception as error:  # noqa: BLE001
             print(f"could not ask the portal for a screenshot: {error}", file=sys.stderr)
             loop.quit()

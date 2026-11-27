@@ -6,7 +6,8 @@
 ## 0. 发布前检查清单
 
 - [ ] `make check` 通过
-- [ ] 在本机 GNOME Shell 上实测：Alt+Tab、Shift+Alt+Tab、Esc、松手切换、缩略图
+- [ ] 在本机 GNOME Shell 上实测：Alt+Tab、Shift+Alt+Tab、Esc、松手切换、缩略图、
+      多行网格与滚动、点击卡片、PrintScreen
 - [ ] 禁用扩展后原生 Alt+Tab 恢复
 - [ ] `disable()` 里释放了所有资源（快捷键、抓取、信号、actor）
 - [ ] `metadata.json` 的 `shell-version` 包含当前 GNOME 稳定版
@@ -25,7 +26,8 @@
   惯例是 `<扩展名>@<域名或昵称>`。
 - 改完执行 `make install`，旧的扩展目录（用旧 uuid 的那份）手动删掉，
   并在 `org.gnome.shell enabled-extensions` 里替换 uuid。
-- `uuid` 只在 `metadata.json` 里，schema id、目录名、zip 名都会自动跟着变。
+- `uuid` 只在 `metadata.json` 里，安装目录名和 zip 名会自动跟着变；schema id 是
+  `Makefile` 和 schema 文件里硬编码的独立值，不跟着 uuid 变，也不需要变。
 
 ## 2. 打 tag、出包
 
@@ -152,14 +154,16 @@ make release
 
 - 扩展页面可以补充截图（需登录）。建议 1920×1080，截一张弹窗里有 3–4 个
   带缩略图的窗口、其中一个高亮的画面。
-- 弹窗会抓走键盘，PrintScreen 在切换过程中不生效，用仓库里的延时截图工具：
+- 弹窗会抓走键盘，`Main.pushModal()` 默认用 `actionMode: NONE` 过滤全局快捷键，
+  所以扩展会把 PrintScreen 主动转发给截图 UI，切换器本身也会出现在截图里。
+  延时/脚本截图仍可用：
 
   ```bash
   tools/screenshot.py --delay 5 --output docs/screenshot.png
   # 然后按住 Alt+Tab 翻到想要的画面
   ```
 
-  仓库当前的 `docs/screenshot.png` 就是这样截的，可以直接上传。
+  仓库当前的 `docs/screenshot.png` 是旧版布局，发布前用当前代码重截再上传。
 - 描述保持纯文本、说明“按 z 序切换、不按 MRU、不按应用分组”。
 
 ## 7. 备选分发方式
