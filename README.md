@@ -31,9 +31,8 @@ is focused, it starts at the top.
 The popup shows a live thumbnail, the application icon and the window title for
 each window. Cards wrap into a grid with as many columns as fit on the monitor;
 when the rows no longer fit, the list scrolls vertically. The extension never
-commits on its own: only releasing the modifier that opened the switcher (or
-Enter/Space, or clicking a card) switches; for a binding without a modifier,
-releasing the triggering key commits. Escape cancels. There is no idle timeout.
+commits on its own: only releasing the modifier (or Enter/Space, or clicking a
+card) switches, Escape cancels. There is no idle timeout.
 
 ## Controls
 
@@ -133,9 +132,8 @@ Implementation notes:
 - The popup takes a modal grab, so key events arrive through the actor's
   `vfunc_key_press_event` / `vfunc_key_release_event`; plain stage signals are not
   delivered while the grab is active.
-- Releasing the modifier that opened the switcher commits (for a binding without
-  one, releasing the triggering key commits). If the modifier was already released
-  before the grab was taken, the popup closes again without switching (checked via
+- Releasing Alt/Super/Ctrl commits. If the modifier was already released before the
+  grab was taken, the popup closes again without switching (checked via
   `global.get_pointer()`).
 - Thumbnails are `Clutter.Clone` clones of the window actor, so there is no extra
   screenshot overhead.
@@ -186,8 +184,8 @@ This project is released under the **GNU General Public License v2.0 or later**
 第一次按 Alt+Tab 默认选中当前焦点窗口下面那一层；如果没有焦点窗口，则从堆顶开始。
 
 弹窗显示每个窗口的实时缩略图 + 图标 + 标题；卡片按显示器宽度自动排成多行网格，
-行数放不下时纵向滚动。扩展不会自己提交：只有松开打开切换器的修饰键（无修饰键的绑定
-则松开触发键，或按 Enter/Space、点击卡片）才切换，Esc 取消，没有空闲超时自动提交。
+行数放不下时纵向滚动。扩展不会自己提交：只有松开修饰键（或按 Enter/Space、点击卡片）
+才切换，Esc 取消，没有空闲超时自动提交。
 
 ## 交互
 
@@ -281,8 +279,8 @@ make check                   # 编译 schema + 校验 metadata + node --check + 
   再用 `global.display.sort_windows_by_stacking()` 按 z 序排序。
 - 弹窗用 `Main.pushModal()` 抓取键盘，因此按键事件走 `vfunc_key_press_event` /
   `vfunc_key_release_event`（模态抓取期间的按键不会传到 stage）。
-- 松开打开切换器的主修饰键时提交（没有修饰键的绑定则松开触发键提交）；如果抓取建立
-  之前修饰键就已经松开，弹窗会直接关闭、不做任何切换（用 `global.get_pointer()` 检测）。
+- 松开 Alt/Super/Ctrl 时提交；如果抓取建立之前修饰键就已经松开，弹窗会直接关闭、
+  不做任何切换（用 `global.get_pointer()` 检测）。
 - 缩略图是 `Clutter.Clone` 克隆的窗口 actor，没有额外截图开销。
 
 ## 已知限制

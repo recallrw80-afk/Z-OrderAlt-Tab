@@ -225,9 +225,6 @@ class SwitcherItem extends St.BoxLayout {
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
-        if (caption.layout_manager)
-            caption.layout_manager.spacing = captionSpacing;
-
         const icon = new St.Icon({
             style_class: 'z-order-switcher-app-icon',
             icon_size: iconSize,
@@ -250,8 +247,12 @@ class SwitcherItem extends St.BoxLayout {
             labelText.line_wrap = false;
         }
         // Keep the caption as wide as the thumbnail, whatever the icon size.
-        this._label.set_width(Math.max(1, thumbWidth - iconSize - captionSpacing));
-        this._label.set_style(`font-size: ${fontSize}pt;`);
+        // The icon–text gap is a padding on the label: St.BoxLayout rewrites its
+        // layout spacing from the theme node on every style change, which would
+        // discard a value set on the layout manager.
+        this._label.set_width(Math.max(1, thumbWidth - iconSize));
+        this._label.set_style(
+            `font-size: ${fontSize}pt; padding-left: ${captionSpacing}px;`);
         caption.add_child(this._label);
 
         this.add_child(caption);
